@@ -1,0 +1,27 @@
+# 数据库（含敏感 TOTP 密钥）
+*.db
+*.db-wal
+*.db-shm
+
+# 环境变量（含密码和密钥）
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+CLAUDE.md

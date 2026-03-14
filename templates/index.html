@@ -1,0 +1,3162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<link rel="icon" type="image/svg+xml"
+href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%23007BFF'/%3E%3Cg fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='9' rx='2'/%3E%3Cpath d='M8 11V8a4 4 0 018 0v3'/%3E%3C/g%3E%3C/svg%3E">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>2FA 验证器</title>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js" integrity="sha384-9Q0jWoineiIq95JeIyBsNV90KKLfDsbkj29k/YFxf76a2JwkHDYkMuSbNGN6XJfV" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" integrity="sha384-lQXOAyZwHXE55JFyrOMB7nY2Wv+m5ZWNtJcHrd1rceRQXAYNLak8ukN5TjBTcIwz" crossorigin="anonymous"></script>
+<script src="https://js.hcaptcha.com/1/api.js" async defer></script>
+<style>
+/* ========== Apple Design System ========== */
+:root {
+  --bg: #f2f2f7;
+  --card: rgba(255,255,255,0.8);
+  --card-solid: #ffffff;
+  --text: #1c1c1e;
+  --text2: #8e8e93;
+  --text3: #aeaeb2;
+  --accent: #007aff;
+  --accent-hover: #0056cc;
+  --red: #ff3b30;
+  --green: #34c759;
+  --orange: #ff9500;
+  --separator: rgba(60,60,67,0.1);
+  --blur-bg: rgba(242,242,247,0.72);
+  --radius: 13px;
+  --radius-lg: 16px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-lg: 0 10px 40px rgba(0,0,0,0.12);
+  --font: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+           'Helvetica Neue', Arial, sans-serif;
+  --mono: 'SF Mono', ui-monospace, 'Cascadia Code', 'Fira Code', monospace;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+}
+
+/* ========== 登录页面 ========== */
+.login-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.login-box {
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+}
+
+.login-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 24px;
+  background: linear-gradient(135deg, var(--accent), #5856d6);
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  color: white;
+  box-shadow: 0 8px 24px rgba(0,122,255,0.3);
+}
+
+.login-title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-bottom: 8px;
+}
+
+.login-subtitle {
+  font-size: 15px;
+  color: var(--text2);
+  margin-bottom: 32px;
+}
+
+.input-group {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.input-group input {
+  width: 100%;
+  height: 50px;
+  padding: 0 16px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--card-solid);
+  font-size: 17px;
+  font-family: var(--font);
+  color: var(--text);
+  outline: none;
+  box-shadow: var(--shadow);
+  transition: box-shadow .2s;
+}
+
+.input-group input:focus {
+  box-shadow: 0 0 0 3px rgba(0,122,255,0.3);
+}
+
+.input-group input::placeholder {
+  color: var(--text3);
+}
+
+.btn {
+  height: 50px;
+  padding: 0 24px;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 17px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all .15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn > * + * { margin-left: 6px; }
+
+.btn-primary {
+  width: 100%;
+  background: var(--accent);
+  color: white;
+}
+
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:active { transform: scale(0.98); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.btn-primary:disabled:hover { background: var(--accent); }
+
+.btn-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2.5px solid rgba(255,255,255,0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn-secondary {
+  background: var(--card-solid);
+  color: var(--accent);
+  box-shadow: var(--shadow);
+}
+
+.btn-secondary:hover { background: #f0f0f5; }
+
+.btn-danger {
+  background: rgba(255,59,48,0.12);
+  color: var(--red);
+}
+
+.btn-danger:hover { background: rgba(255,59,48,0.2); }
+
+.btn-sm {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+  border-radius: 10px;
+}
+
+.login-error {
+  color: var(--red);
+  font-size: 14px;
+  margin-top: 12px;
+  min-height: 20px;
+}
+
+/* ========== 主布局 ========== */
+.app-wrap {
+  display: none;
+  min-height: 100vh;
+  padding-bottom: calc(80px + var(--safe-bottom));
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 12px 20px;
+  background: var(--blur-bg);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 0.5px solid var(--separator);
+}
+
+.header-inner {
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.header-actions {
+  display: flex;
+}
+
+.header-actions > * + * { margin-left: 8px; }
+
+.header-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,122,255,0.1);
+  color: var(--accent);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+}
+
+.header-btn:hover { background: rgba(0,122,255,0.18); }
+.header-btn.danger { background: rgba(255,59,48,0.1); color: var(--red); }
+.header-btn.danger:hover { background: rgba(255,59,48,0.18); }
+
+/* ========== Logo ========== */
+.header-logo {
+  display: flex;
+  align-items: center;
+}
+
+.header-logo > * + * { margin-left: 10px; }
+
+.header-logo svg {
+  flex-shrink: 0;
+}
+
+/* ========== 汉堡菜单 ========== */
+.menu-wrap {
+  position: relative;
+}
+
+.menu-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: var(--card-solid);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg), 0 0 0 0.5px var(--separator);
+  min-width: 160px;
+  padding: 6px;
+  z-index: 200;
+}
+
+.menu-dropdown.show {
+  display: block;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 15px;
+  font-family: var(--font);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background .15s;
+  white-space: nowrap;
+}
+
+.menu-item > * + * { margin-left: 10px; }
+
+.menu-item:hover {
+  background: var(--separator);
+}
+
+.menu-item.danger {
+  color: var(--red);
+}
+
+.menu-separator {
+  height: 1px;
+  background: var(--separator);
+  margin: 4px 8px;
+}
+
+/* ========== 主题切换下拉 ========== */
+.theme-wrap {
+  position: relative;
+}
+
+.theme-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  background: var(--card-solid);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg), 0 0 0 0.5px var(--separator);
+  min-width: 140px;
+  padding: 6px;
+  z-index: 200;
+}
+
+.theme-dropdown.show {
+  display: block;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 15px;
+  font-family: var(--font);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background .15s;
+  white-space: nowrap;
+}
+
+.theme-option > * + * { margin-left: 10px; }
+
+.theme-option:hover {
+  background: var(--separator);
+}
+
+.theme-option.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ========== 验证码列表 ========== */
+.account-list {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px 20px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 80px 40px;
+  color: var(--text2);
+}
+
+.empty-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.empty-state h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.empty-state p {
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.account-card {
+  background: var(--card-solid);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+  transition: transform .15s, box-shadow .15s;
+  position: relative;
+  overflow: hidden;
+}
+
+.account-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.account-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-issuer {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-username {
+  font-size: 15px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.account-actions {
+  display: flex;
+}
+
+.account-actions > * + * { margin-left: 4px; }
+
+.account-card:hover .account-actions {
+  opacity: 1;
+}
+
+.action-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text2);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+}
+
+.action-btn:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.action-btn.delete:hover {
+  background: rgba(255,59,48,0.1);
+  color: var(--red);
+}
+
+.code-row {
+  display: flex;
+  align-items: center;
+}
+
+.code-row > * + * { margin-left: 12px; }
+
+.totp-code {
+  font-family: var(--mono);
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: all;
+  transition: color .2s;
+  flex-shrink: 0;
+}
+
+.totp-code:hover { color: var(--accent); }
+
+.totp-code.expiring {
+  color: var(--red);
+}
+
+.timer-ring {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.timer-ring svg {
+  transform: rotate(-90deg);
+  width: 36px;
+  height: 36px;
+}
+
+.timer-ring .bg {
+  fill: none;
+  stroke: var(--separator);
+  stroke-width: 3;
+}
+
+.timer-ring .progress {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear, stroke .3s;
+}
+
+.timer-ring .progress.expiring {
+  stroke: var(--red);
+}
+
+.timer-text {
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text2);
+}
+
+.account-note {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copy-toast {
+  position: fixed;
+  bottom: calc(100px + var(--safe-bottom));
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0;
+  transition: all .3s ease;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.copy-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ========== 弹窗 ========== */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1000;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.modal-overlay.show {
+  display: flex;
+}
+
+.modal {
+  background: var(--card-solid);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 500px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 0;
+  transform: translateY(100%);
+  transition: transform .35s cubic-bezier(0.32, 0.72, 0, 1);
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-overlay.show .modal {
+  transform: translateY(0);
+}
+
+.modal-header {
+  padding: 16px 20px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  background: var(--card-solid);
+  z-index: 1;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.modal-close {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text2);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-body {
+  padding: 4px 20px 20px;
+}
+
+.form-section {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+  padding-left: 4px;
+}
+
+.form-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--separator);
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 16px;
+  font-family: var(--font);
+  color: var(--text);
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.form-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+}
+
+.form-input::placeholder { color: var(--text3); }
+
+.form-input.mono {
+  font-family: var(--mono);
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+textarea.form-input {
+  height: 80px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.form-row {
+  display: flex;
+}
+
+.form-row > * + * { margin-left: 10px; }
+
+.form-row > * { flex: 1; }
+
+.form-hint {
+  font-size: 12px;
+  color: var(--text3);
+  margin-top: 6px;
+  padding-left: 4px;
+}
+
+/* QR 上传区 */
+.qr-upload {
+  border: 2px dashed var(--separator);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all .2s;
+  background: var(--bg);
+}
+
+.qr-upload:hover {
+  border-color: var(--accent);
+  background: rgba(0,122,255,0.04);
+}
+
+.qr-upload-icon {
+  font-size: 32px;
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
+.qr-upload-text {
+  font-size: 14px;
+  color: var(--text2);
+}
+
+.qr-upload input[type="file"] {
+  display: none;
+}
+
+.qr-result {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.qr-result.success {
+  background: rgba(52,199,89,0.1);
+  color: var(--green);
+}
+
+.qr-result.error {
+  background: rgba(255,59,48,0.1);
+  color: var(--red);
+}
+
+.or-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0;
+  font-size: 13px;
+  color: var(--text3);
+}
+
+.or-divider::before { margin-right: 12px; }
+.or-divider::after { margin-left: 12px; }
+
+.or-divider::before,
+.or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--separator);
+}
+
+.modal-footer {
+  padding: 0 20px 20px;
+  display: flex;
+}
+
+.modal-footer > * + * { margin-left: 10px; }
+
+.modal-footer .btn { flex: 1; }
+
+/* ========== 搜索框 ========== */
+.search-bar {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.search-input-wrap {
+  position: relative;
+}
+
+.search-input-wrap::before {
+  content: '\1F50D';
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  opacity: 0.4;
+}
+
+.search-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 34px 0 38px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(142,142,147,0.12);
+  font-size: 15px;
+  font-family: var(--font);
+  color: var(--text);
+  outline: none;
+}
+
+.search-input::placeholder { color: var(--text3); }
+
+.search-clear {
+  display: none;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text3);
+  color: var(--card-solid);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.search-clear.show {
+  display: block;
+}
+
+/* ========== 响应式 ========== */
+@media (max-width: 600px) {
+  .totp-code {
+    font-size: 30px;
+    letter-spacing: 3px;
+  }
+
+  .modal {
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+  }
+}
+
+@media (min-width: 601px) {
+  .modal-overlay {
+    align-items: center;
+  }
+
+  .modal {
+    border-radius: 20px;
+    max-height: 80vh;
+  }
+
+  /* 桌面端：hover 显示操作按钮 */
+  .account-actions {
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .account-card:hover .account-actions {
+    opacity: 1;
+  }
+}
+
+/* ========== 分组 ========== */
+.group-section {
+  margin-bottom: 8px;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 4px 6px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 8px;
+  transition: background .15s;
+}
+
+.group-header:hover {
+  background: var(--separator);
+}
+
+.group-header > * + * { margin-left: 8px; }
+
+.group-header-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.group-header-count {
+  font-size: 12px;
+  color: var(--text3);
+  background: var(--separator);
+  padding: 1px 7px;
+  border-radius: 8px;
+}
+
+.group-header-arrow {
+  color: var(--text3);
+  font-size: 12px;
+  transition: transform .2s;
+}
+
+.group-header-arrow.collapsed {
+  transform: rotate(-90deg);
+}
+
+.group-content.collapsed {
+  display: none;
+}
+
+/* ========== 分组筛选标签 ========== */
+.group-filter-bar {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 8px 20px 0;
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.group-filter-bar > * + * { margin-left: 8px; }
+
+.group-filter-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.group-tag {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--card-solid);
+  color: var(--text2);
+  border: 1px solid var(--separator);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+
+.group-tag:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.group-tag.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+/* ========== 复制按钮 ========== */
+.copy-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(0,122,255,0.08);
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all .15s;
+  margin-left: auto;
+}
+
+.copy-btn:hover {
+  background: rgba(0,122,255,0.16);
+}
+
+.copy-btn:active {
+  transform: scale(0.92);
+}
+
+.copy-btn.copied {
+  background: rgba(52,199,89,0.12);
+  color: var(--green);
+}
+
+/* ========== 密钥显隐 ========== */
+.secret-field-wrap {
+  position: relative;
+  display: flex;
+}
+
+.secret-field-wrap > * + * { margin-left: 8px; }
+
+.secret-field-wrap .form-input {
+  flex: 1;
+  padding-right: 46px;
+}
+
+.secret-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+}
+
+.secret-toggle:hover {
+  background: var(--separator);
+  color: var(--text);
+}
+
+/* ========== 高级选项折叠 ========== */
+.advanced-toggle {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 0;
+}
+
+.advanced-toggle > * + * { margin-left: 6px; }
+
+.advanced-toggle .form-label {
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+.advanced-toggle-arrow {
+  color: var(--text3);
+  font-size: 12px;
+  transition: transform .2s;
+  flex-shrink: 0;
+}
+
+.advanced-toggle-arrow.collapsed {
+  transform: rotate(-90deg);
+}
+
+.advanced-content {
+  overflow: hidden;
+  transition: max-height .25s ease, opacity .2s ease;
+  max-height: 200px;
+  opacity: 1;
+  margin-top: 8px;
+}
+
+.advanced-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+}
+
+/* ========== Apple 风格 Dialog ========== */
+.dialog-overlay {
+  display: none;
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 3000;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog-overlay.show {
+  display: flex;
+}
+
+.dialog-box {
+  background: var(--card-solid);
+  border-radius: 16px;
+  width: calc(100% - 48px);
+  max-width: 300px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  transform: scale(0.9);
+  opacity: 0;
+  transition: transform .2s cubic-bezier(0.32, 0.72, 0, 1), opacity .15s;
+}
+
+.dialog-overlay.show .dialog-box {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.dialog-body {
+  padding: 24px 20px 16px;
+  text-align: center;
+}
+
+.dialog-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+
+.dialog-message {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.dialog-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--separator);
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 15px;
+  font-family: var(--font);
+  color: var(--text);
+  outline: none;
+  margin-top: 14px;
+  text-align: center;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+.dialog-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0,122,255,0.15);
+}
+
+.dialog-input::placeholder { color: var(--text3); }
+
+.dialog-buttons {
+  display: flex;
+  border-top: 0.5px solid var(--separator);
+}
+
+.dialog-btn {
+  flex: 1;
+  height: 46px;
+  border: none;
+  background: none;
+  font-size: 17px;
+  font-family: var(--font);
+  cursor: pointer;
+  color: var(--accent);
+  transition: background .1s;
+}
+
+.dialog-btn:active {
+  background: var(--separator);
+}
+
+.dialog-btn + .dialog-btn {
+  border-left: 0.5px solid var(--separator);
+}
+
+.dialog-btn.bold {
+  font-weight: 600;
+}
+
+.dialog-btn.danger {
+  color: var(--red);
+}
+
+/* ========== 二维码弹窗 ========== */
+.qr-modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-modal-overlay.show {
+  display: flex;
+}
+
+.qr-modal {
+  background: var(--card-solid);
+  border-radius: 20px;
+  padding: 28px;
+  text-align: center;
+  max-width: 320px;
+  width: calc(100% - 40px);
+  box-shadow: var(--shadow-lg);
+  transform: scale(0.9);
+  opacity: 0;
+  transition: transform .25s cubic-bezier(0.32, 0.72, 0, 1), opacity .2s;
+}
+
+.qr-modal-overlay.show .qr-modal {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.qr-modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.qr-modal-subtitle {
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 20px;
+  word-break: break-all;
+}
+
+.qr-modal-image {
+  display: inline-block;
+  padding: 16px;
+  background: white;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.qr-modal-image img,
+.qr-modal-image canvas {
+  display: block;
+}
+
+.qr-modal-close {
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.qr-modal-close:hover {
+  background: rgba(0,122,255,0.1);
+}
+
+/* ========== URI/QR 禁用状态（密钥未加载） ========== */
+.uri-action-btn.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.uri-display-text.placeholder {
+  color: var(--text3);
+  font-style: italic;
+}
+
+/* ========== 二维码溢出修复 ========== */
+.qr-modal-image img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ========== URI 操作按钮组 ========== */
+.uri-actions {
+  display: flex;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+}
+
+.uri-actions > * + * { margin-left: 6px; }
+
+.uri-action-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 7px;
+  background: var(--card-solid);
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  transition: all .15s;
+}
+
+.uri-action-btn:hover {
+  background: var(--accent);
+  color: white;
+}
+
+/* ========== otpauth URI 显示 ========== */
+.uri-display {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--separator);
+  border-radius: 10px;
+  position: relative;
+}
+
+.uri-display-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.uri-display-text {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text2);
+  word-break: break-all;
+  line-height: 1.5;
+  user-select: all;
+}
+
+.uri-copy-btn {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 7px;
+  background: var(--card-solid);
+  color: var(--accent);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  transition: all .15s;
+}
+
+.uri-copy-btn:hover {
+  background: var(--accent);
+  color: white;
+}
+
+/* ========== 账户时间信息 ========== */
+.account-meta {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--text3);
+}
+
+.account-meta-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.account-meta-item + .account-meta-item {
+  text-align: right;
+}
+
+.account-meta-label {
+  font-weight: 600;
+  margin-bottom: 2px;
+  color: var(--text2);
+}
+
+/* ========== 编辑弹窗内删除按钮 ========== */
+.modal-delete-section {
+  margin-top: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--separator);
+}
+
+.btn-delete-full {
+  width: 100%;
+  height: 46px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255,59,48,0.08);
+  color: var(--red);
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+}
+
+.btn-delete-full > * + * { margin-left: 6px; }
+
+.btn-delete-full:hover {
+  background: rgba(255,59,48,0.16);
+}
+
+.btn-delete-full:active {
+  transform: scale(0.98);
+}
+
+/* ========== 分组管理弹窗 ========== */
+.group-manage-list {
+  margin-bottom: 16px;
+}
+
+.group-manage-item {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--separator);
+}
+
+.group-manage-item > * + * { margin-left: 10px; }
+
+.group-manage-item:last-child {
+  border-bottom: none;
+}
+
+.group-manage-name {
+  flex: 1;
+  font-size: 15px;
+  color: var(--text);
+}
+
+.group-manage-count {
+  font-size: 13px;
+  color: var(--text3);
+  flex-shrink: 0;
+}
+
+.group-manage-actions {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.group-manage-actions > * + * { margin-left: 4px; }
+
+.group-manage-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+}
+
+.group-manage-btn:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.group-manage-empty {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--text3);
+  font-size: 14px;
+}
+
+.group-add-row {
+  display: flex;
+}
+
+.group-add-row > * + * { margin-left: 8px; }
+
+.group-add-row .form-input {
+  flex: 1;
+}
+
+.group-add-row .btn.btn-primary {
+  flex-shrink: 0;
+  height: 46px;
+  padding: 0 16px;
+  min-width: 0;
+  width: auto;
+}
+
+/* ========== 动画 ========== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.account-card.new-card {
+  animation: fadeIn .3s ease forwards;
+}
+
+/* ========== 暗色模式 ========== */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000;
+    --card: rgba(28,28,30,0.8);
+    --card-solid: #1c1c1e;
+    --text: #ffffff;
+    --text2: #98989f;
+    --text3: #636366;
+    --separator: rgba(84,84,88,0.35);
+    --blur-bg: rgba(0,0,0,0.72);
+  }
+
+  :root:not([data-theme="light"]) .form-input {
+    background: #2c2c2e;
+    border-color: rgba(84,84,88,0.35);
+  }
+
+  :root:not([data-theme="light"]) .qr-upload { background: #2c2c2e; }
+  :root:not([data-theme="light"]) .search-input { background: rgba(118,118,128,0.24); }
+  :root:not([data-theme="light"]) .modal-close { background: #2c2c2e; }
+  :root:not([data-theme="light"]) .header-btn { background: rgba(0,122,255,0.2); }
+  :root:not([data-theme="light"]) .header-btn.danger { background: rgba(255,59,48,0.2); }
+  :root:not([data-theme="light"]) .action-btn:hover { background: #2c2c2e; }
+  :root:not([data-theme="light"]) .group-tag { background: #2c2c2e; border-color: rgba(84,84,88,0.35); }
+  :root:not([data-theme="light"]) .group-tag.active { background: var(--accent); border-color: var(--accent); }
+  :root:not([data-theme="light"]) .copy-btn { background: rgba(0,122,255,0.15); }
+  :root:not([data-theme="light"]) .copy-btn:hover { background: rgba(0,122,255,0.25); }
+  :root:not([data-theme="light"]) .copy-btn.copied { background: rgba(52,199,89,0.2); }
+  :root:not([data-theme="light"]) .uri-display { background: #2c2c2e; border-color: rgba(84,84,88,0.35); }
+  :root:not([data-theme="light"]) .uri-copy-btn { background: #3a3a3c; }
+  :root:not([data-theme="light"]) .uri-action-btn { background: #3a3a3c; }
+  :root:not([data-theme="light"]) .btn-delete-full { background: rgba(255,59,48,0.15); }
+  :root:not([data-theme="light"]) .qr-modal-close { background: #2c2c2e; }
+}
+
+/* 强制暗色模式 */
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --card: rgba(28,28,30,0.8);
+  --card-solid: #1c1c1e;
+  --text: #ffffff;
+  --text2: #98989f;
+  --text3: #636366;
+  --separator: rgba(84,84,88,0.35);
+  --blur-bg: rgba(0,0,0,0.72);
+}
+
+:root[data-theme="dark"] .form-input {
+  background: #2c2c2e;
+  border-color: rgba(84,84,88,0.35);
+}
+
+:root[data-theme="dark"] .qr-upload { background: #2c2c2e; }
+:root[data-theme="dark"] .search-input { background: rgba(118,118,128,0.24); }
+:root[data-theme="dark"] .modal-close { background: #2c2c2e; }
+:root[data-theme="dark"] .header-btn { background: rgba(0,122,255,0.2); }
+:root[data-theme="dark"] .header-btn.danger { background: rgba(255,59,48,0.2); }
+:root[data-theme="dark"] .action-btn:hover { background: #2c2c2e; }
+:root[data-theme="dark"] .group-tag { background: #2c2c2e; border-color: rgba(84,84,88,0.35); }
+:root[data-theme="dark"] .group-tag.active { background: var(--accent); border-color: var(--accent); }
+:root[data-theme="dark"] .copy-btn { background: rgba(0,122,255,0.15); }
+:root[data-theme="dark"] .copy-btn:hover { background: rgba(0,122,255,0.25); }
+:root[data-theme="dark"] .copy-btn.copied { background: rgba(52,199,89,0.2); }
+:root[data-theme="dark"] .uri-display { background: #2c2c2e; border-color: rgba(84,84,88,0.35); }
+:root[data-theme="dark"] .uri-copy-btn { background: #3a3a3c; }
+:root[data-theme="dark"] .uri-action-btn { background: #3a3a3c; }
+:root[data-theme="dark"] .btn-delete-full { background: rgba(255,59,48,0.15); }
+:root[data-theme="dark"] .qr-modal-close { background: #2c2c2e; }
+</style>
+</head>
+<body>
+
+<!-- ==================== 登录页面 ==================== -->
+<div id="loginView" class="login-wrap">
+  <div class="login-box">
+    <div class="login-icon">
+      <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+      </svg>
+    </div>
+    <h1 class="login-title">2FA 验证器</h1>
+    <p class="login-subtitle">输入访问密码以继续</p>
+    <form id="loginForm" onsubmit="return handleLogin(event)">
+      <div class="input-group">
+        <input type="password" id="loginPassword" placeholder="输入密码" autocomplete="current-password" autofocus>
+      </div>
+      <div id="hcaptchaBox" style="display:none;margin:16px 0;justify-content:center;">
+        <div id="hcaptchaWidget"></div>
+      </div>
+      <button type="submit" class="btn btn-primary" id="loginBtn"><span id="loginBtnText">解锁</span></button>
+      <div id="loginError" class="login-error"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== 主应用 ==================== -->
+<div id="appView" class="app-wrap">
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="header-logo">
+        <svg width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" rx="22" fill="var(--accent)"/>
+          <path d="M50 18C38.95 18 30 26.95 30 38v8h-2a4 4 0 00-4 4v28a4 4 0 004 4h44a4 4 0 004-4V50a4 4 0 00-4-4h-2v-8C70 26.95 61.05 18 50 18zm0 8c7.18 0 12 5.82 12 12v8H38v-8c0-6.18 4.82-12 12-12zm0 30a6 6 0 110 12 6 6 0 010-12z" fill="white"/>
+        </svg>
+        <h1 class="header-title">2FA 验证器</h1>
+      </div>
+      <div class="header-actions">
+        <button class="header-btn" onclick="openAddModal()" title="添加账户">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <div class="theme-wrap">
+          <button class="header-btn" onclick="toggleThemeDropdown(event)" title="切换主题" id="themeBtn">
+            <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+          <div class="theme-dropdown" id="themeDropdown">
+            <button class="theme-option" onclick="setTheme('light')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              <span>浅色</span>
+            </button>
+            <button class="theme-option" onclick="setTheme('dark')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+              <span>深色</span>
+            </button>
+            <button class="theme-option" onclick="setTheme('system')">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <span>跟随系统</span>
+            </button>
+          </div>
+        </div>
+        <div class="menu-wrap">
+          <button class="header-btn" onclick="toggleMenuDropdown(event)" title="菜单">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div class="menu-dropdown" id="menuDropdown">
+            <button class="menu-item" onclick="closeMenuDropdown(); openGroupManageModal()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              <span>管理分组</span>
+            </button>
+            <div class="menu-separator"></div>
+            <button class="menu-item danger" onclick="closeMenuDropdown(); handleLogout()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <span>退出登录</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="search-bar" style="margin-top:12px; margin-bottom:4px;">
+    <div class="search-input-wrap">
+      <input type="text" class="search-input" id="searchInput" placeholder="搜索" oninput="handleSearchInput()">
+      <button class="search-clear" id="searchClear" onclick="clearSearch()">&times;</button>
+    </div>
+  </div>
+
+  <div class="group-filter-bar" id="groupFilterBar"></div>
+
+  <div class="account-list" id="accountList"></div>
+</div>
+
+<!-- ==================== 添加/编辑弹窗 ==================== -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modalTitle">添加账户</h2>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <!-- 二维码上传 -->
+      <div class="form-section" id="qrSection">
+        <label class="form-label">扫描二维码</label>
+        <div class="qr-upload" onclick="document.getElementById('qrFile').click()">
+          <div class="qr-upload-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="20" y1="14" x2="20" y2="20"/><line x1="14" y1="20" x2="20" y2="20"/></svg>
+          </div>
+          <div class="qr-upload-text">点击上传或 Ctrl+V 粘贴二维码图片</div>
+          <input type="file" id="qrFile" accept="image/*" onchange="handleQrUpload(this)">
+        </div>
+        <div id="qrResult"></div>
+      </div>
+
+      <div class="or-divider" id="orDivider">或手动输入</div>
+
+      <!-- 手动输入 -->
+      <div class="form-section">
+        <label class="form-label">密钥 *</label>
+        <div class="secret-field-wrap">
+          <input type="password" class="form-input mono" id="formSecret" placeholder="JBSWY3DPEHPK3PXP 或 otpauth:// URI" oninput="handleSecretInput(this)">
+          <button type="button" class="secret-toggle" onclick="toggleSecretVisibility()" title="显示/隐藏密钥">
+            <svg id="secretEyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <div class="form-hint" id="secretHint">支持粘贴 Base32 密钥或 otpauth:// 链接</div>
+      </div>
+
+      <div class="form-section">
+        <label class="form-label">网站 / 服务名</label>
+        <input type="text" class="form-input" id="formIssuer" placeholder="如：Google、GitHub">
+      </div>
+
+      <div class="form-section">
+        <label class="form-label">用户名 / 邮箱</label>
+        <input type="text" class="form-input" id="formUsername" placeholder="如：user@example.com">
+      </div>
+
+      <div class="form-section">
+        <label class="form-label">备注</label>
+        <textarea class="form-input" id="formNote" placeholder="可选备注信息"></textarea>
+      </div>
+
+      <div class="form-section">
+        <label class="form-label">分组</label>
+        <select class="form-input" id="formGroup">
+          <option value="">不分组</option>
+        </select>
+        <div class="form-hint">在顶部「管理分组」中创建新分组</div>
+      </div>
+
+      <div class="form-section" id="advancedSection">
+        <div class="advanced-toggle" onclick="toggleAdvanced()">
+          <span class="advanced-toggle-arrow collapsed" id="advancedArrow">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 2l4 4-4 4"/></svg>
+          </span>
+          <label class="form-label">高级选项</label>
+        </div>
+        <div class="advanced-content collapsed" id="advancedContent">
+          <div class="form-row">
+            <div>
+              <label class="form-hint" style="margin-top:0;margin-bottom:4px;">位数</label>
+              <select class="form-input" id="formDigits">
+                <option value="6" selected>6</option>
+                <option value="8">8</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-hint" style="margin-top:0;margin-bottom:4px;">周期(秒)</label>
+              <select class="form-input" id="formPeriod">
+                <option value="30" selected>30</option>
+                <option value="60">60</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-hint" style="margin-top:0;margin-bottom:4px;">算法</label>
+              <select class="form-input" id="formAlgorithm">
+                <option value="SHA1" selected>SHA1</option>
+                <option value="SHA256">SHA256</option>
+                <option value="SHA512">SHA512</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 编辑模式：otpauth URI 显示 -->
+      <div class="form-section" id="uriSection" style="display:none">
+        <label class="form-label">账户信息 (TOTP URI)</label>
+        <div class="uri-display">
+          <div class="uri-display-label">otpauth://</div>
+          <div class="uri-display-text" id="uriDisplayText"></div>
+          <div class="uri-actions">
+            <button type="button" class="uri-action-btn" onclick="showQrCode()" title="显示二维码">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/><line x1="20" y1="14" x2="20" y2="20"/><line x1="14" y1="20" x2="20" y2="20"/></svg>
+            </button>
+            <button type="button" class="uri-action-btn" onclick="copyUri()" title="复制 URI">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 编辑模式：时间信息 -->
+      <div id="metaSection" style="display:none" class="form-section">
+        <div class="account-meta">
+          <div class="account-meta-item">
+            <span class="account-meta-label">创建时间</span>
+            <span id="metaCreatedAt">-</span>
+          </div>
+          <div class="account-meta-item">
+            <span class="account-meta-label">更新时间</span>
+            <span id="metaUpdatedAt">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 编辑模式：删除按钮 -->
+      <div id="deleteSection" style="display:none">
+        <div class="modal-delete-section">
+          <button type="button" class="btn-delete-full" id="modalDeleteBtn" onclick="deleteFromEditModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            删除此账户
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" id="modalSubmit" onclick="handleSubmit()">添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 分组管理弹窗 ==================== -->
+<div class="modal-overlay" id="groupModalOverlay" onclick="if(event.target===this)closeGroupManageModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 class="modal-title">管理分组</h2>
+      <button class="modal-close" onclick="closeGroupManageModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-section">
+        <label class="form-label">新建分组</label>
+        <div class="group-add-row">
+          <input type="text" class="form-input" id="newGroupName" placeholder="输入分组名称">
+          <button class="btn btn-primary" onclick="createGroup()">添加</button>
+        </div>
+      </div>
+      <div class="form-section">
+        <label class="form-label">已有分组</label>
+        <div class="group-manage-list" id="groupManageList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="copy-toast" id="copyToast"></div>
+
+<!-- 通用 Apple 风格 Dialog -->
+<div class="dialog-overlay" id="dialogOverlay">
+  <div class="dialog-box">
+    <div class="dialog-body">
+      <div class="dialog-title" id="dialogTitle"></div>
+      <div class="dialog-message" id="dialogMessage"></div>
+      <input type="text" class="dialog-input" id="dialogInput" style="display:none;" autocomplete="off">
+    </div>
+    <div class="dialog-buttons" id="dialogButtons"></div>
+  </div>
+</div>
+
+<!-- 二维码弹窗 -->
+<div class="qr-modal-overlay" id="qrModalOverlay" onclick="if(event.target===this)closeQrModal()">
+  <div class="qr-modal">
+    <div class="qr-modal-title" id="qrModalTitle">TOTP 二维码</div>
+    <div class="qr-modal-subtitle" id="qrModalSubtitle"></div>
+    <div class="qr-modal-image" id="qrModalImage"></div>
+    <button class="qr-modal-close" onclick="closeQrModal()">关闭</button>
+  </div>
+</div>
+
+<script>
+/* ========== 主题切换 ========== */
+function applyTheme(theme) {
+  var root = document.documentElement;
+  if (theme === 'dark') {
+    root.setAttribute('data-theme', 'dark');
+  } else if (theme === 'light') {
+    root.setAttribute('data-theme', 'light');
+  } else {
+    root.removeAttribute('data-theme');
+  }
+  updateThemeIcon(theme);
+  updateThemeOptions(theme);
+}
+
+function updateThemeIcon(theme) {
+  var icon = document.getElementById('themeIcon');
+  if (!icon) return;
+  var isDark = theme === 'dark' ||
+    (theme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  if (isDark) {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
+  } else {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>';
+  }
+}
+
+// 监听系统主题变化，跟随系统模式下实时更新图标
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addListener(function() {
+    if (getStoredTheme() === 'system') {
+      updateThemeIcon('system');
+    }
+  });
+}
+
+function updateThemeOptions(theme) {
+  var opts = document.querySelectorAll('.theme-option');
+  var map = ['light', 'dark', 'system'];
+  for (var i = 0; i < opts.length; i++) {
+    if (map[i] === theme) {
+      opts[i].classList.add('active');
+    } else {
+      opts[i].classList.remove('active');
+    }
+  }
+}
+
+function setTheme(theme) {
+  localStorage.setItem('theme', theme);
+  applyTheme(theme);
+  closeThemeDropdown();
+}
+
+function getStoredTheme() {
+  return localStorage.getItem('theme') || 'system';
+}
+
+// 初始化主题（立即执行，避免闪烁）
+applyTheme(getStoredTheme());
+
+/* ========== 下拉菜单控制 ========== */
+function toggleThemeDropdown(e) {
+  e.stopPropagation();
+  closeMenuDropdown();
+  document.getElementById('themeDropdown').classList.toggle('show');
+}
+
+function closeThemeDropdown() {
+  document.getElementById('themeDropdown').classList.remove('show');
+}
+
+function toggleMenuDropdown(e) {
+  e.stopPropagation();
+  closeThemeDropdown();
+  document.getElementById('menuDropdown').classList.toggle('show');
+}
+
+function closeMenuDropdown() {
+  document.getElementById('menuDropdown').classList.remove('show');
+}
+
+// 点击外部关闭所有下拉
+document.addEventListener('click', function() {
+  closeThemeDropdown();
+  closeMenuDropdown();
+});
+
+/* ========== 状态 ========== */
+let accounts = [];
+let editingId = null;
+let refreshTimer = null;
+let countdownTimer = null;
+let isLoadingAccounts = false;
+let activeGroupFilter = null;
+let collapsedGroups = new Set();
+let cachedGroups = []; // 缓存分组列表
+let secretVisible = false;
+let secretLoaded = false;  // 编辑模式下密钥是否已从服务器加载
+let sensitivePasswordEnabled = false;  // 服务端是否启用了敏感操作密码
+let hcaptchaSiteKey = '';  // hCaptcha 站点密钥（空则未启用）
+let hcaptchaWidgetId = null;  // hCaptcha 渲染后的 widget ID
+
+/* ========== 初始化 ========== */
+(async function init() {
+  const resp = await fetch('/api/status');
+  const data = await resp.json();
+  sensitivePasswordEnabled = !!data.sensitive_password_enabled;
+  hcaptchaSiteKey = data.hcaptcha_site_key || '';
+  if (hcaptchaSiteKey) {
+    initHcaptcha();
+  }
+  if (data.authenticated) {
+    showApp();
+  }
+})();
+
+function initHcaptcha() {
+  // invisible 模式：不显示 widget，提交时自动触发验证
+  const box = document.getElementById('hcaptchaBox');
+  box.style.display = 'none';
+  function tryRender() {
+    if (typeof hcaptcha !== 'undefined' && hcaptcha.render) {
+      hcaptchaWidgetId = hcaptcha.render('hcaptchaWidget', {
+        sitekey: hcaptchaSiteKey,
+        size: 'invisible',
+      });
+    } else {
+      setTimeout(tryRender, 200);
+    }
+  }
+  tryRender();
+}
+
+/* ========== 登录 ========== */
+let isLoggingIn = false;
+
+function setLoginLoading(loading) {
+  const btn = document.getElementById('loginBtn');
+  const btnText = document.getElementById('loginBtnText');
+  if (loading) {
+    btn.disabled = true;
+    btnText.innerHTML = '<span class="btn-spinner"></span>';
+  } else {
+    btn.disabled = false;
+    btnText.textContent = '解锁';
+  }
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  if (isLoggingIn) return;
+
+  const pw = document.getElementById('loginPassword').value;
+  if (!pw) {
+    document.getElementById('loginError').textContent = '请输入密码';
+    document.getElementById('loginPassword').focus();
+    return;
+  }
+
+  isLoggingIn = true;
+  setLoginLoading(true);
+  document.getElementById('loginError').textContent = '';
+
+  // invisible hCaptcha：提交时自动触发验证
+  let captchaToken = '';
+  if (hcaptchaSiteKey) {
+    if (typeof hcaptcha === 'undefined' || hcaptchaWidgetId === null) {
+      document.getElementById('loginError').textContent = '人机验证组件加载中，请稍后重试';
+      isLoggingIn = false; setLoginLoading(false);
+      return;
+    }
+    try {
+      const tokenResp = await hcaptcha.execute(hcaptchaWidgetId, { async: true });
+      captchaToken = tokenResp.response;
+    } catch {
+      document.getElementById('loginError').textContent = '人机验证失败或被取消，请重试';
+      isLoggingIn = false; setLoginLoading(false);
+      return;
+    }
+    if (!captchaToken) {
+      document.getElementById('loginError').textContent = '人机验证未完成，请重试';
+      isLoggingIn = false; setLoginLoading(false);
+      return;
+    }
+  }
+
+  try {
+    const resp = await fetch('/api/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({password: pw, captcha_token: captchaToken})
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      document.getElementById('loginError').textContent = '';
+      // 登录成功后获取敏感密码启用状态
+      try {
+        const sr = await fetch('/api/status');
+        const sd = await sr.json();
+        sensitivePasswordEnabled = !!sd.sensitive_password_enabled;
+      } catch {}
+      showApp();
+    } else {
+      document.getElementById('loginError').textContent = data.error || '登录失败';
+      document.getElementById('loginPassword').focus();
+      // 验证失败后重置 hCaptcha（invisible 模式下也需要重置以允许下次 execute）
+      if (hcaptchaSiteKey && typeof hcaptcha !== 'undefined' && hcaptchaWidgetId !== null) {
+        hcaptcha.reset(hcaptchaWidgetId);
+      }
+    }
+  } catch {
+    document.getElementById('loginError').textContent = '网络错误，请重试';
+  } finally {
+    isLoggingIn = false;
+    setLoginLoading(false);
+  }
+}
+
+async function handleLogout() {
+  await fetch('/api/logout', {method: 'POST'});
+  document.getElementById('appView').style.display = 'none';
+  document.getElementById('loginView').style.display = 'flex';
+  document.getElementById('loginPassword').value = '';
+  clearInterval(refreshTimer);
+  clearInterval(countdownTimer);
+  // 重置 hCaptcha
+  if (hcaptchaSiteKey && typeof hcaptcha !== 'undefined' && hcaptchaWidgetId !== null) {
+    hcaptcha.reset(hcaptchaWidgetId);
+  }
+}
+
+function showApp() {
+  document.getElementById('loginView').style.display = 'none';
+  document.getElementById('appView').style.display = 'block';
+  loadAccounts();
+  loadGroups();
+  startSmartRefresh();
+}
+
+/* ========== 数据加载 ========== */
+async function loadAccounts() {
+  if (isLoadingAccounts) return;
+  isLoadingAccounts = true;
+  clearTimeout(refreshTimer);
+  try {
+    const resp = await fetch('/api/accounts');
+    if (resp.status === 401) { handleLogout(); return; }
+    accounts = await resp.json();
+    renderGroupFilter();
+    renderAccounts();
+  } catch (e) {
+    console.error('加载失败', e);
+  } finally {
+    isLoadingAccounts = false;
+    scheduleNextRefresh();
+  }
+}
+
+async function loadGroups() {
+  try {
+    const resp = await fetch('/api/groups');
+    cachedGroups = await resp.json();
+  } catch {}
+  return cachedGroups;
+}
+
+/* ========== 智能刷新 ========== */
+function startSmartRefresh() {
+  clearInterval(refreshTimer);
+  clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    updateCountdownLocally();
+  }, 1000);
+  scheduleNextRefresh();
+}
+
+function scheduleNextRefresh() {
+  clearTimeout(refreshTimer);
+  if (accounts.length === 0) {
+    refreshTimer = setTimeout(() => loadAccounts(), 5000);
+    return;
+  }
+  let minRemaining = Infinity;
+  for (const a of accounts) {
+    const r = a.remaining || 0;
+    if (r > 0 && r < minRemaining) minRemaining = r;
+  }
+  const delay = Math.max(1, minRemaining) * 1000 + 500;
+  refreshTimer = setTimeout(() => loadAccounts(), delay);
+}
+
+function updateCountdownLocally() {
+  if (isLoadingAccounts) return;
+  let needsRefresh = false;
+  for (const a of accounts) {
+    if (a.remaining > 0) a.remaining--;
+    if (a.remaining <= 0) needsRefresh = true;
+  }
+  if (needsRefresh) { loadAccounts(); return; }
+  updateTimersInDOM();
+}
+
+function updateTimersInDOM() {
+  for (const a of accounts) {
+    const card = document.querySelector(`.account-card[data-id="${a.id}"]`);
+    if (!card) continue;
+    const remaining = a.remaining || 0;
+    const period = a.period || 30;
+    const pct = remaining / period;
+    const circumference = 2 * Math.PI * 14;
+    const offset = circumference * (1 - pct);
+    const expiring = remaining <= 5;
+    const timerText = card.querySelector('.timer-text');
+    if (timerText) timerText.textContent = remaining;
+    const progress = card.querySelector('.progress');
+    if (progress) {
+      progress.setAttribute('stroke-dashoffset', offset);
+      progress.classList.toggle('expiring', expiring);
+    }
+    const codeEl = card.querySelector('.totp-code');
+    if (codeEl) codeEl.classList.toggle('expiring', expiring);
+  }
+}
+
+/* ========== 分组筛选 ========== */
+function renderGroupFilter() {
+  const bar = document.getElementById('groupFilterBar');
+  const groups = [...new Set(accounts.map(a => a.group_name || '').filter(g => g))];
+  if (groups.length === 0) {
+    bar.innerHTML = '';
+    bar.style.display = 'none';
+    return;
+  }
+  bar.style.display = 'flex';
+  let html = `<div class="group-tag ${activeGroupFilter === null ? 'active' : ''}" onclick="setGroupFilter(null)">全部</div>`;
+  for (const g of groups) {
+    const active = activeGroupFilter === g ? 'active' : '';
+    html += `<div class="group-tag ${active}" onclick="setGroupFilter('${escAttr(g)}')">${esc(g)}</div>`;
+  }
+  const hasUngrouped = accounts.some(a => !a.group_name);
+  if (hasUngrouped) {
+    const active = activeGroupFilter === '' ? 'active' : '';
+    html += `<div class="group-tag ${active}" onclick="setGroupFilter('')">未分组</div>`;
+  }
+  bar.innerHTML = html;
+}
+
+function setGroupFilter(group) {
+  activeGroupFilter = group;
+  renderGroupFilter();
+  renderAccounts();
+}
+
+/* ========== 渲染 ========== */
+function renderAccounts() {
+  const container = document.getElementById('accountList');
+  const query = document.getElementById('searchInput').value.toLowerCase().trim();
+  let filtered = accounts;
+  if (query) {
+    filtered = filtered.filter(a =>
+      (a.issuer||'').toLowerCase().includes(query) ||
+      (a.username||'').toLowerCase().includes(query) ||
+      (a.note||'').toLowerCase().includes(query) ||
+      (a.group_name||'').toLowerCase().includes(query)
+    );
+  }
+  if (activeGroupFilter !== null) {
+    filtered = filtered.filter(a => (a.group_name || '') === activeGroupFilter);
+  }
+  if (filtered.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" opacity="0.4">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+          </svg>
+        </div>
+        <h3>${query ? '没有匹配结果' : '还没有账户'}</h3>
+        <p>${query ? '尝试不同的搜索关键词' : '点击右上角 + 添加你的第一个 2FA 账户'}</p>
+      </div>`;
+    return;
+  }
+
+  const grouped = new Map();
+  for (const a of filtered) {
+    const g = a.group_name || '';
+    if (!grouped.has(g)) grouped.set(g, []);
+    grouped.get(g).push(a);
+  }
+  const groupNames = [...grouped.keys()];
+  const showGroupHeaders = groupNames.length > 1 || (groupNames.length === 1 && groupNames[0] !== '');
+
+  let html = '';
+  let cardIndex = 0;
+  for (const [groupName, items] of grouped) {
+    const isCollapsed = collapsedGroups.has(groupName);
+    if (showGroupHeaders) {
+      const displayName = groupName || '未分组';
+      html += `<div class="group-section">
+        <div class="group-header" onclick="toggleGroup('${escAttr(groupName)}')">
+          <span class="group-header-arrow ${isCollapsed ? 'collapsed' : ''}">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 2l4 4-4 4"/></svg>
+          </span>
+          <span class="group-header-text">${esc(displayName)}</span>
+          <span class="group-header-count">${items.length}</span>
+        </div>
+        <div class="group-content ${isCollapsed ? 'collapsed' : ''}">`;
+    }
+    for (const a of items) {
+      html += renderCard(a, cardIndex++);
+    }
+    if (showGroupHeaders) {
+      html += `</div></div>`;
+    }
+  }
+  container.innerHTML = html;
+}
+
+function renderCard(a, i) {
+  const code = a.code || 'ERROR';
+  const remaining = a.remaining || 0;
+  const period = a.period || 30;
+  const pct = remaining / period;
+  const circumference = 2 * Math.PI * 14;
+  const offset = circumference * (1 - pct);
+  const expiring = remaining <= 5;
+  const displayCode = code.length === 6
+    ? code.slice(0,3) + ' ' + code.slice(3)
+    : code.length === 8
+      ? code.slice(0,4) + ' ' + code.slice(4)
+      : code;
+
+  return `
+  <div class="account-card" style="animation-delay:${i*0.03}s" data-id="${a.id}">
+    <div class="account-top">
+      <div class="account-info">
+        <div class="account-issuer">${esc(a.issuer || '未命名')}</div>
+        <div class="account-username">${esc(a.username || '')}</div>
+      </div>
+      <div class="account-actions">
+        <button class="action-btn" onclick="openEditModal(${a.id})" title="编辑">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="code-row">
+      <div class="totp-code ${expiring?'expiring':''}" onclick="copyCode('${code}', this)">${displayCode}</div>
+      <div class="timer-ring">
+        <svg viewBox="0 0 36 36">
+          <circle class="bg" cx="18" cy="18" r="14"/>
+          <circle class="progress ${expiring?'expiring':''}" cx="18" cy="18" r="14"
+            stroke-dasharray="${circumference}"
+            stroke-dashoffset="${offset}"/>
+        </svg>
+        <span class="timer-text">${remaining}</span>
+      </div>
+      <button class="copy-btn" onclick="copyCode('${code}', this)" title="复制验证码">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+      </button>
+    </div>
+    ${a.note ? `<div class="account-note">${esc(a.note)}</div>` : ''}
+  </div>`;
+}
+
+function toggleGroup(groupName) {
+  if (collapsedGroups.has(groupName)) collapsedGroups.delete(groupName);
+  else collapsedGroups.add(groupName);
+  renderAccounts();
+}
+
+function filterAccounts() { renderAccounts(); }
+
+function handleSearchInput() {
+  var btn = document.getElementById('searchClear');
+  var val = document.getElementById('searchInput').value;
+  if (val.length > 0) {
+    btn.classList.add('show');
+  } else {
+    btn.classList.remove('show');
+  }
+  filterAccounts();
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').classList.remove('show');
+  filterAccounts();
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function formatTime(s) {
+  if (!s) return '-';
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function escAttr(s) {
+  // 转义用于 HTML 属性中 JS 字符串的特殊字符，防止 XSS
+  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/</g, '\\x3c').replace(/>/g, '\\x3e');
+}
+
+/* ========== 复制（带 fallback） ========== */
+async function copyCode(code, btnEl) {
+  let success = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(code);
+      success = true;
+    }
+  } catch {}
+  if (!success) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      success = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch {}
+  }
+  if (success) {
+    showToast('已复制验证码');
+    if (btnEl) {
+      const card = btnEl.closest('.account-card');
+      if (card) {
+        const copyBtn = card.querySelector('.copy-btn');
+        if (copyBtn) {
+          copyBtn.classList.add('copied');
+          copyBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+          setTimeout(() => {
+            copyBtn.classList.remove('copied');
+            copyBtn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+          }, 1500);
+        }
+      }
+    }
+  } else {
+    showToast('复制失败，请手动复制');
+  }
+}
+
+async function copyText(text, toastMsg) {
+  let success = false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      success = true;
+    }
+  } catch {}
+  if (!success) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      success = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch {}
+  }
+  showToast(success ? (toastMsg || '已复制') : '复制失败');
+}
+
+function showToast(msg) {
+  const t = document.getElementById('copyToast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1500);
+}
+
+/* ========== 通用 Apple 风格 Dialog ========== */
+let _dialogResolve = null;
+
+function _showDialog(title, message, buttons, inputOpts) {
+  return new Promise((resolve) => {
+    _dialogResolve = resolve;
+    document.getElementById('dialogTitle').textContent = title || '';
+    document.getElementById('dialogMessage').textContent = message || '';
+    const inputEl = document.getElementById('dialogInput');
+    if (inputOpts) {
+      inputEl.style.display = 'block';
+      inputEl.type = inputOpts.type || 'text';
+      inputEl.value = inputOpts.value || '';
+      inputEl.placeholder = inputOpts.placeholder || '';
+      // 回车确认：点击最后一个按钮（确认按钮）
+      inputEl.onkeydown = function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          _resolveDialog(inputOpts.type === 'password' ? inputEl.value : inputEl.value, true);
+        }
+      };
+    } else {
+      inputEl.style.display = 'none';
+      inputEl.onkeydown = null;
+    }
+    const btnContainer = document.getElementById('dialogButtons');
+    btnContainer.innerHTML = '';
+    buttons.forEach((btn) => {
+      const el = document.createElement('button');
+      el.className = 'dialog-btn' + (btn.bold ? ' bold' : '') + (btn.danger ? ' danger' : '');
+      el.textContent = btn.text;
+      el.onclick = () => _resolveDialog(btn.value, !!inputOpts);
+      btnContainer.appendChild(el);
+    });
+    document.getElementById('dialogOverlay').classList.add('show');
+    if (inputOpts) {
+      setTimeout(() => { inputEl.focus(); inputEl.select(); }, 100);
+    }
+  });
+}
+
+function _resolveDialog(value, hasInput) {
+  document.getElementById('dialogOverlay').classList.remove('show');
+  if (_dialogResolve) {
+    if (hasInput && value === false) {
+      _dialogResolve(null);
+    } else {
+      const inputEl = document.getElementById('dialogInput');
+      _dialogResolve(hasInput && value !== false ? inputEl.value : value);
+    }
+    _dialogResolve = null;
+  }
+}
+
+function _closeDialog() {
+  document.getElementById('dialogOverlay').classList.remove('show');
+  if (_dialogResolve) {
+    _dialogResolve(null);
+    _dialogResolve = null;
+  }
+}
+
+/**
+ * Apple 风格确认框
+ * @returns {Promise<boolean>}
+ */
+function showConfirm(title, message, opts) {
+  const confirmText = (opts && opts.confirmText) || '确定';
+  const cancelText = (opts && opts.cancelText) || '取消';
+  const danger = !!(opts && opts.danger);
+  return _showDialog(title, message, [
+    { text: cancelText, value: false },
+    { text: confirmText, value: true, bold: !danger, danger: danger },
+  ]);
+}
+
+/**
+ * Apple 风格输入框（替代 prompt）
+ * @returns {Promise<string|null>} null 表示取消
+ */
+function showPrompt(title, message, opts) {
+  const confirmText = (opts && opts.confirmText) || '确定';
+  const cancelText = (opts && opts.cancelText) || '取消';
+  return _showDialog(title, message, [
+    { text: cancelText, value: false },
+    { text: confirmText, value: true, bold: true },
+  ], {
+    type: (opts && opts.type) || 'text',
+    value: (opts && opts.defaultValue) || '',
+    placeholder: (opts && opts.placeholder) || '',
+  });
+}
+
+/* ========== 敏感操作密码确认 ========== */
+function requestSensitivePassword(hint) {
+  if (!sensitivePasswordEnabled) {
+    return Promise.resolve('');
+  }
+  return showPrompt('安全验证', hint || '请输入操作密码以继续', {
+    type: 'password',
+    placeholder: '输入操作密码',
+    confirmText: '确认',
+  });
+}
+
+/* ========== 密钥显隐 ========== */
+async function toggleSecretVisibility() {
+  const input = document.getElementById('formSecret');
+  const icon = document.getElementById('secretEyeIcon');
+
+  // 编辑模式下首次显示密钥：从服务器加载
+  if (editingId && !secretLoaded && !secretVisible) {
+    // 敏感操作密码验证
+    const pwd = await requestSensitivePassword('查看密钥需要验证操作密码');
+    if (pwd === null) return;  // 用户取消
+
+    input.placeholder = '加载中...';
+    try {
+      const resp = await fetch(`/api/accounts/${editingId}/secret`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sensitive_password: pwd})
+      });
+      if (resp.status === 401) { handleLogout(); return; }
+      const data = await resp.json();
+      if (data.need_sensitive_password) {
+        showToast(data.error || '操作密码错误');
+        input.placeholder = '点击右侧眼睛图标加载密钥';
+        return;
+      }
+      if (data.error) { showToast(data.error); input.placeholder = '加载失败'; return; }
+      input.value = data.secret;
+      secretLoaded = true;
+      // 更新 URI 显示
+      const a = accounts.find(x => x.id === editingId);
+      if (a) {
+        // 临时将 secret 附加到 account 对象用于生成 URI
+        const uriData = { ...a, secret: data.secret };
+        document.getElementById('uriDisplayText').textContent = generateOtpauthUri(uriData);
+        document.getElementById('uriDisplayText').classList.remove('placeholder');
+        setUriActionsDisabled(false);
+      }
+    } catch (e) {
+      showToast('加载密钥失败');
+      input.placeholder = '点击右侧眼睛图标加载密钥';
+      return;
+    }
+  }
+
+  secretVisible = !secretVisible;
+  input.type = secretVisible ? 'text' : 'password';
+  if (secretVisible) {
+    icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+    // 编辑模式下重新打开眼睛：恢复 URI 显示
+    if (editingId && secretLoaded) {
+      const a = accounts.find(x => x.id === editingId);
+      if (a) {
+        const uriData = { ...a, secret: input.value };
+        document.getElementById('uriDisplayText').textContent = generateOtpauthUri(uriData);
+        document.getElementById('uriDisplayText').classList.remove('placeholder');
+        setUriActionsDisabled(false);
+      }
+    }
+  } else {
+    icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    // 编辑模式下关闭眼睛：隐藏 URI 并禁用二维码/复制
+    if (editingId && secretLoaded) {
+      document.getElementById('uriDisplayText').textContent = '密钥已隐藏，请点击上方眼睛图标显示';
+      document.getElementById('uriDisplayText').classList.add('placeholder');
+      setUriActionsDisabled(true);
+    }
+  }
+  input.placeholder = 'JBSWY3DPEHPK3PXP 或 otpauth:// URI';
+}
+
+/* ========== URI 操作按钮禁用控制 ========== */
+function setUriActionsDisabled(disabled) {
+  const btns = document.querySelectorAll('#uriSection .uri-action-btn');
+  btns.forEach(btn => {
+    if (disabled) {
+      btn.classList.add('disabled');
+    } else {
+      btn.classList.remove('disabled');
+    }
+  });
+}
+
+/* ========== otpauth URI 生成 ========== */
+function generateOtpauthUri(a) {
+  const issuer = a.issuer || '';
+  const username = a.username || '';
+  const label = issuer ? `${issuer}:${username}` : username;
+  const encodedLabel = encodeURIComponent(label);
+  let uri = `otpauth://totp/${encodedLabel}?secret=${encodeURIComponent(a.secret)}`;
+  if (issuer) uri += `&issuer=${encodeURIComponent(issuer)}`;
+  if (a.digits && a.digits !== 6) uri += `&digits=${a.digits}`;
+  if (a.period && a.period !== 30) uri += `&period=${a.period}`;
+  if (a.algorithm && a.algorithm !== 'SHA1') uri += `&algorithm=${a.algorithm}`;
+  return uri;
+}
+
+function copyUri() {
+  if (editingId && !secretLoaded) { showToast('请先加载密钥'); return; }
+  const text = document.getElementById('uriDisplayText').textContent;
+  copyText(text, '已复制 URI');
+}
+
+/* ========== 二维码展示 ========== */
+function showQrCode() {
+  if (editingId && !secretLoaded) { showToast('请先加载密钥'); return; }
+  const uri = document.getElementById('uriDisplayText').textContent;
+  if (!uri) return;
+  const a = editingId ? accounts.find(x => x.id === editingId) : null;
+  const title = a ? (a.issuer || '未命名') : 'TOTP';
+  const subtitle = a ? (a.username || '') : '';
+
+  document.getElementById('qrModalTitle').textContent = title;
+  document.getElementById('qrModalSubtitle').textContent = subtitle;
+
+  // 使用 qrcode-generator 生成二维码
+  const container = document.getElementById('qrModalImage');
+  container.innerHTML = '';
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(uri);
+    qr.make();
+    // createImgTag(cellSize, margin) - 稳定 API
+    container.innerHTML = qr.createImgTag(5, 0);
+  } catch (e) {
+    container.innerHTML = '<div style="color:var(--red);font-size:13px;">生成二维码失败</div>';
+  }
+
+  document.getElementById('qrModalOverlay').classList.add('show');
+}
+
+function closeQrModal() {
+  document.getElementById('qrModalOverlay').classList.remove('show');
+}
+
+/* ========== 高级选项折叠 ========== */
+function toggleAdvanced() {
+  const arrow = document.getElementById('advancedArrow');
+  const content = document.getElementById('advancedContent');
+  arrow.classList.toggle('collapsed');
+  content.classList.toggle('collapsed');
+}
+
+/* ========== 弹窗 ========== */
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '添加账户';
+  document.getElementById('modalSubmit').textContent = '添加';
+  document.getElementById('qrSection').style.display = 'block';
+  document.getElementById('orDivider').style.display = 'flex';
+  document.getElementById('secretHint').style.display = '';
+  document.getElementById('advancedSection').style.display = 'block';
+  document.getElementById('uriSection').style.display = 'none';
+  document.getElementById('deleteSection').style.display = 'none';
+  document.getElementById('metaSection').style.display = 'none';
+  clearForm();
+  // 高级选项默认收起
+  document.getElementById('advancedArrow').classList.add('collapsed');
+  document.getElementById('advancedContent').classList.add('collapsed');
+  populateGroupSelect('');
+  openModal();
+}
+
+function openEditModal(id) {
+  const a = accounts.find(x => x.id === id);
+  if (!a) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = '编辑账户';
+  document.getElementById('modalSubmit').textContent = '保存';
+  // 编辑模式：隐藏添加专用的区域
+  document.getElementById('qrSection').style.display = 'none';
+  document.getElementById('orDivider').style.display = 'none';
+  document.getElementById('secretHint').style.display = 'none';
+  document.getElementById('advancedSection').style.display = 'none';
+
+  // 重置密钥状态：未加载、隐藏
+  secretVisible = false;
+  secretLoaded = false;
+  document.getElementById('formSecret').type = 'password';
+  document.getElementById('formSecret').value = '';
+  document.getElementById('formSecret').placeholder = '点击右侧眼睛图标加载密钥';
+  const icon = document.getElementById('secretEyeIcon');
+  icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+
+  document.getElementById('formIssuer').value = a.issuer || '';
+  document.getElementById('formUsername').value = a.username || '';
+  document.getElementById('formNote').value = a.note || '';
+  document.getElementById('formDigits').value = a.digits || 6;
+  document.getElementById('formPeriod').value = a.period || 30;
+  document.getElementById('formAlgorithm').value = a.algorithm || 'SHA1';
+
+  populateGroupSelect(a.group_name || '');
+
+  // 显示 otpauth URI 区域（密钥未加载前为占位状态）
+  document.getElementById('uriSection').style.display = 'block';
+  document.getElementById('uriDisplayText').textContent = '密钥未加载，请先点击上方眼睛图标显示密钥';
+  document.getElementById('uriDisplayText').classList.add('placeholder');
+  // 禁用二维码和复制按钮
+  setUriActionsDisabled(true);
+
+  // 显示删除按钮
+  document.getElementById('deleteSection').style.display = 'block';
+
+  // 显示时间信息
+  document.getElementById('metaSection').style.display = 'block';
+  document.getElementById('metaCreatedAt').textContent = formatTime(a.created_at);
+  document.getElementById('metaUpdatedAt').textContent = formatTime(a.updated_at);
+
+  openModal();
+}
+
+function populateGroupSelect(selectedValue) {
+  const select = document.getElementById('formGroup');
+  let html = '<option value="">不分组</option>';
+  for (const g of cachedGroups) {
+    const selected = g === selectedValue ? 'selected' : '';
+    html += `<option value="${esc(g)}" ${selected}>${esc(g)}</option>`;
+  }
+  select.innerHTML = html;
+  if (selectedValue) select.value = selectedValue;
+}
+
+function openModal() {
+  // 暂停后台轮询，避免与弹窗内请求并发导致数据库锁
+  clearTimeout(refreshTimer);
+  clearInterval(countdownTimer);
+  document.getElementById('modalOverlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+  document.body.style.overflow = '';
+  clearForm();
+  // 恢复后台轮询
+  startSmartRefresh();
+}
+
+function clearForm() {
+  ['formSecret','formIssuer','formUsername','formNote'].forEach(id =>
+    document.getElementById(id).value = ''
+  );
+  document.getElementById('formGroup').value = '';
+  document.getElementById('formDigits').value = '6';
+  document.getElementById('formPeriod').value = '30';
+  document.getElementById('formAlgorithm').value = 'SHA1';
+  document.getElementById('qrResult').innerHTML = '';
+  document.getElementById('qrFile').value = '';
+  // 重置密钥为隐藏
+  secretVisible = false;
+  secretLoaded = false;
+  document.getElementById('formSecret').type = 'password';
+  document.getElementById('formSecret').placeholder = 'JBSWY3DPEHPK3PXP 或 otpauth:// URI';
+  // 重置 URI 占位文本样式
+  document.getElementById('uriDisplayText').classList.remove('placeholder');
+}
+
+/* ========== 分组管理弹窗 ========== */
+function openGroupManageModal() {
+  document.getElementById('groupModalOverlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+  document.getElementById('newGroupName').value = '';
+  renderGroupManageList();
+}
+
+function closeGroupManageModal() {
+  document.getElementById('groupModalOverlay').classList.remove('show');
+  document.body.style.overflow = '';
+  // 刷新主列表
+  loadAccounts();
+}
+
+function renderGroupManageList() {
+  const container = document.getElementById('groupManageList');
+  if (cachedGroups.length === 0) {
+    container.innerHTML = '<div class="group-manage-empty">还没有分组</div>';
+    return;
+  }
+  // 统计每组数量
+  const counts = {};
+  for (const a of accounts) {
+    const g = a.group_name || '';
+    if (g) counts[g] = (counts[g] || 0) + 1;
+  }
+  container.innerHTML = cachedGroups.map(g => `
+    <div class="group-manage-item">
+      <span class="group-manage-name">${esc(g)}</span>
+      <span class="group-manage-count">${counts[g] || 0} 个账户</span>
+      <div class="group-manage-actions">
+        <button class="group-manage-btn" onclick="renameGroupPrompt('${escAttr(g)}')" title="重命名">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        </button>
+        <button class="group-manage-btn" onclick="deleteGroup('${escAttr(g)}')" title="删除" style="color:var(--red)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function createGroup() {
+  const input = document.getElementById('newGroupName');
+  const name = input.value.trim();
+  if (!name) { showToast('请输入分组名称'); return; }
+  try {
+    const resp = await fetch('/api/groups', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name})
+    });
+    const data = await resp.json();
+    if (data.error) { showToast(data.error); return; }
+    input.value = '';
+    // 直接更新本地缓存
+    if (!cachedGroups.includes(name)) {
+      cachedGroups.push(name);
+      cachedGroups.sort();
+    }
+    renderGroupManageList();
+    showToast('分组已创建');
+  } catch { showToast('创建失败'); }
+}
+
+async function renameGroupPrompt(oldName) {
+  const newName = await showPrompt('重命名分组', '', {
+    defaultValue: oldName,
+    placeholder: '输入新的分组名称',
+    confirmText: '保存',
+  });
+  if (!newName || newName.trim() === '' || newName.trim() === oldName) return;
+  try {
+    const resp = await fetch('/api/groups/rename', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({old_name: oldName, new_name: newName.trim()})
+    });
+    const data = await resp.json();
+    if (data.error) { showToast(data.error); return; }
+    // 直接更新本地缓存
+    const idx = cachedGroups.indexOf(oldName);
+    if (idx !== -1) cachedGroups[idx] = newName.trim();
+    cachedGroups.sort();
+    for (const a of accounts) {
+      if (a.group_name === oldName) a.group_name = newName.trim();
+    }
+    renderGroupManageList();
+    renderGroupFilter();
+    renderAccounts();
+    showToast('分组已重命名');
+  } catch { showToast('重命名失败'); }
+}
+
+async function deleteGroup(name) {
+  const count = accounts.filter(a => a.group_name === name).length;
+  const msg = count > 0
+    ? `其中 ${count} 个账户将变为未分组。`
+    : '';
+  const confirmed = await showConfirm(`删除分组「${name}」？`, msg, { confirmText: '删除', danger: true });
+  if (!confirmed) return;
+  try {
+    const resp = await fetch('/api/groups', {
+      method: 'DELETE',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name})
+    });
+    const data = await resp.json();
+    if (data.error) { showToast(data.error); return; }
+    // 更新本地缓存
+    const idx = cachedGroups.indexOf(name);
+    if (idx !== -1) cachedGroups.splice(idx, 1);
+    for (const a of accounts) {
+      if (a.group_name === name) a.group_name = '';
+    }
+    renderGroupManageList();
+    renderGroupFilter();
+    renderAccounts();
+    showToast('分组已删除');
+  } catch { showToast('删除失败'); }
+}
+
+/* ========== 密钥输入处理 ========== */
+function handleSecretInput(input) {
+  const val = input.value.trim();
+  if (val.startsWith('otpauth://')) {
+    // 留给后端处理
+  }
+}
+
+/* ========== 二维码前端解析 ========== */
+function decodeQrFromFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, canvas.width, canvas.height);
+        if (code) resolve(code.data);
+        else reject(new Error('未能识别图片中的二维码'));
+      };
+      img.onerror = () => reject(new Error('图片加载失败'));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error('文件读取失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function parseOtpauthUri(uri) {
+  try {
+    if (!uri.startsWith('otpauth://totp/')) return null;
+    const url = new URL(uri);
+    const label = decodeURIComponent(url.pathname.slice(1));
+    const params = url.searchParams;
+    let issuer = params.get('issuer') || '';
+    let username = label;
+    if (label.includes(':')) {
+      const parts = label.split(':');
+      if (!issuer) issuer = parts[0];
+      username = parts.slice(1).join(':');
+    }
+    return {
+      secret: (params.get('secret') || '').toUpperCase().replace(/[\s-]/g, ''),
+      issuer, username,
+      digits: parseInt(params.get('digits') || '6'),
+      period: parseInt(params.get('period') || '30'),
+      algorithm: (params.get('algorithm') || 'SHA1').toUpperCase(),
+    };
+  } catch { return null; }
+}
+
+function fillFormFromQr(content) {
+  const resultEl = document.getElementById('qrResult');
+  if (content.startsWith('otpauth://')) {
+    const d = parseOtpauthUri(content);
+    if (d) {
+      document.getElementById('formSecret').value = d.secret || '';
+      document.getElementById('formIssuer').value = d.issuer || '';
+      document.getElementById('formUsername').value = d.username || '';
+      document.getElementById('formDigits').value = d.digits;
+      document.getElementById('formPeriod').value = d.period;
+      document.getElementById('formAlgorithm').value = d.algorithm;
+      resultEl.innerHTML = `<div class="qr-result success">已识别: ${esc(d.issuer||'')} ${esc(d.username||'')}</div>`;
+      return;
+    }
+  }
+  document.getElementById('formSecret').value = content;
+  resultEl.innerHTML = `<div class="qr-result success">已识别内容</div>`;
+}
+
+async function handleQrUpload(input) {
+  if (!input.files[0]) return;
+  const resultEl = document.getElementById('qrResult');
+  resultEl.innerHTML = '<div class="qr-result" style="background:var(--bg);color:var(--text2)">解析中...</div>';
+  try {
+    const content = await decodeQrFromFile(input.files[0]);
+    fillFormFromQr(content);
+  } catch (e) {
+    resultEl.innerHTML = `<div class="qr-result error">${esc(e.message)}</div>`;
+  }
+}
+
+/* ========== 提交 ========== */
+async function handleSubmit() {
+  const secret = document.getElementById('formSecret').value.trim();
+
+  // 新增模式下密钥必填；编辑模式下密钥为空则不修改密钥
+  if (!editingId && !secret) { showToast('请输入密钥'); return; }
+
+  const payload = {};
+  if (secret) {
+    if (secret.startsWith('otpauth://')) {
+      payload.uri = secret;
+    } else {
+      payload.secret = secret;
+    }
+  }
+  payload.issuer = document.getElementById('formIssuer').value.trim();
+  payload.username = document.getElementById('formUsername').value.trim();
+  payload.note = document.getElementById('formNote').value.trim();
+  payload.group_name = document.getElementById('formGroup').value;
+  payload.digits = parseInt(document.getElementById('formDigits').value);
+  payload.period = parseInt(document.getElementById('formPeriod').value);
+  payload.algorithm = document.getElementById('formAlgorithm').value;
+
+  try {
+    let resp;
+    if (editingId) {
+      resp = await fetch(`/api/accounts/${editingId}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+    } else {
+      resp = await fetch('/api/accounts', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+    }
+    const data = await resp.json();
+    if (data.error) { showToast(data.error); return; }
+    closeModal();
+    loadAccounts();
+    showToast(editingId ? '已保存' : '已添加');
+  } catch (e) {
+    showToast('操作失败');
+  }
+}
+
+/* ========== 删除 ========== */
+async function deleteAccount(id) {
+  const a = accounts.find(x => x.id === id);
+  const name = a ? (a.issuer || '未命名') : '';
+  const confirmed = await showConfirm(`删除「${name}」？`, '此操作不可撤销。', { confirmText: '删除', danger: true });
+  if (!confirmed) return;
+
+  // 敏感操作密码验证
+  const pwd = await requestSensitivePassword('删除账户需要验证操作密码');
+  if (pwd === null) return;
+
+  try {
+    const resp = await fetch(`/api/accounts/${id}`, {
+      method: 'DELETE',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sensitive_password: pwd})
+    });
+    const data = await resp.json();
+    if (data.need_sensitive_password) {
+      showToast(data.error || '操作密码错误');
+      return;
+    }
+    loadAccounts();
+    showToast('已删除');
+  } catch (e) {
+    showToast('删除失败');
+  }
+}
+
+async function deleteFromEditModal() {
+  if (!editingId) return;
+  const a = accounts.find(x => x.id === editingId);
+  const name = a ? (a.issuer || '未命名') : '';
+  const confirmed = await showConfirm(`删除「${name}」？`, '此操作不可撤销。', { confirmText: '删除', danger: true });
+  if (!confirmed) return;
+
+  // 敏感操作密码验证
+  const pwd = await requestSensitivePassword('删除账户需要验证操作密码');
+  if (pwd === null) return;
+
+  try {
+    const resp = await fetch(`/api/accounts/${editingId}`, {
+      method: 'DELETE',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sensitive_password: pwd})
+    });
+    const data = await resp.json();
+    if (data.need_sensitive_password) {
+      showToast(data.error || '操作密码错误');
+      return;
+    }
+    closeModal();
+    loadAccounts();
+    showToast('已删除');
+  } catch (e) {
+    showToast('删除失败');
+  }
+}
+
+/* ========== 键盘快捷键 ========== */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (document.getElementById('dialogOverlay').classList.contains('show')) {
+      _closeDialog();
+    } else if (document.getElementById('qrModalOverlay').classList.contains('show')) {
+      closeQrModal();
+    } else if (document.getElementById('groupModalOverlay').classList.contains('show')) {
+      closeGroupManageModal();
+    } else {
+      closeModal();
+    }
+  }
+});
+
+/* ========== 粘贴图片支持 ========== */
+document.addEventListener('paste', async (e) => {
+  if (!document.getElementById('modalOverlay').classList.contains('show')) return;
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (!file) return;
+      const resultEl = document.getElementById('qrResult');
+      resultEl.innerHTML = '<div class="qr-result" style="background:var(--bg);color:var(--text2)">解析粘贴的图片...</div>';
+      try {
+        const content = await decodeQrFromFile(file);
+        fillFormFromQr(content);
+      } catch (err) {
+        resultEl.innerHTML = `<div class="qr-result error">${esc(err.message)}</div>`;
+      }
+      return;
+    }
+  }
+});
+</script>
+</body>
+</html>
