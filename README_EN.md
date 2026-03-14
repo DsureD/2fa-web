@@ -71,7 +71,7 @@ All data is stored in a local SQLite database with no reliance on any third-part
 
 ```bash
 # Clone the project
-git clone https://github.com/yourname/2fa-web.git
+git clone https://github.com/DsureD/2fa-web.git
 cd 2fa-web
 
 # Install dependencies
