@@ -422,8 +422,6 @@ body {
   font-size: 13px;
   font-weight: 600;
   color: var(--accent);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1429,12 +1427,37 @@ textarea.form-input {
   align-items: center;
   padding: 10px 0;
   border-bottom: 1px solid var(--separator);
+  transition: background .15s, opacity .15s;
+}
+
+.group-manage-item.dragging {
+  opacity: 0.4;
+}
+
+.group-manage-item.drag-over {
+  background: rgba(0,122,255,0.06);
 }
 
 .group-manage-item > * + * { margin-left: 10px; }
 
 .group-manage-item:last-child {
   border-bottom: none;
+}
+
+.group-drag-handle {
+  width: 24px;
+  height: 24px;
+  cursor: grab;
+  color: var(--text3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  touch-action: none;
+}
+
+.group-drag-handle:active {
+  cursor: grabbing;
 }
 
 .group-manage-name {
@@ -2189,15 +2212,24 @@ function updateTimersInDOM() {
 /* ========== 分组筛选 ========== */
 function renderGroupFilter() {
   const bar = document.getElementById('groupFilterBar');
-  const groups = [...new Set(accounts.map(a => a.group_name || '').filter(g => g))];
-  if (groups.length === 0) {
+  const accountGroups = new Set(accounts.map(a => a.group_name || '').filter(g => g));
+  if (accountGroups.size === 0) {
     bar.innerHTML = '';
     bar.style.display = 'none';
     return;
   }
   bar.style.display = 'flex';
   let html = `<div class="group-tag ${activeGroupFilter === null ? 'active' : ''}" onclick="setGroupFilter(null)">全部</div>`;
-  for (const g of groups) {
+  // 按 cachedGroups 的自定义排序展示
+  for (const g of cachedGroups) {
+    if (accountGroups.has(g)) {
+      const active = activeGroupFilter === g ? 'active' : '';
+      html += `<div class="group-tag ${active}" onclick="setGroupFilter('${escAttr(g)}')">${esc(g)}</div>`;
+      accountGroups.delete(g);
+    }
+  }
+  // 剩余不在 cachedGroups 中的分组
+  for (const g of accountGroups) {
     const active = activeGroupFilter === g ? 'active' : '';
     html += `<div class="group-tag ${active}" onclick="setGroupFilter('${escAttr(g)}')">${esc(g)}</div>`;
   }
@@ -2245,18 +2277,33 @@ function renderAccounts() {
     return;
   }
 
+  // 按账户分组
   const grouped = new Map();
   for (const a of filtered) {
     const g = a.group_name || '';
     if (!grouped.has(g)) grouped.set(g, []);
     grouped.get(g).push(a);
   }
-  const groupNames = [...grouped.keys()];
+
+  // 按 cachedGroups 的自定义排序决定分组展示顺序
+  const orderedEntries = [];
+  for (const g of cachedGroups) {
+    if (grouped.has(g)) {
+      orderedEntries.push([g, grouped.get(g)]);
+      grouped.delete(g);
+    }
+  }
+  // 剩余的分组（不在 cachedGroups 中的有名分组 + 未分组）
+  for (const [g, items] of grouped) {
+    orderedEntries.push([g, items]);
+  }
+
+  const groupNames = orderedEntries.map(e => e[0]);
   const showGroupHeaders = groupNames.length > 1 || (groupNames.length === 1 && groupNames[0] !== '');
 
   let html = '';
   let cardIndex = 0;
-  for (const [groupName, items] of grouped) {
+  for (const [groupName, items] of orderedEntries) {
     const isCollapsed = collapsedGroups.has(groupName);
     if (showGroupHeaders) {
       const displayName = groupName || '未分组';
@@ -2831,7 +2878,10 @@ function renderGroupManageList() {
     if (g) counts[g] = (counts[g] || 0) + 1;
   }
   container.innerHTML = cachedGroups.map(g => `
-    <div class="group-manage-item">
+    <div class="group-manage-item" draggable="true" data-group="${escAttr(g)}">
+      <span class="group-drag-handle" title="拖拽排序">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/></svg>
+      </span>
       <span class="group-manage-name">${esc(g)}</span>
       <span class="group-manage-count">${counts[g] || 0} 个账户</span>
       <div class="group-manage-actions">
@@ -2844,6 +2894,75 @@ function renderGroupManageList() {
       </div>
     </div>
   `).join('');
+  initGroupDragAndDrop();
+}
+
+/* ========== 分组拖拽排序 ========== */
+let _draggedGroupItem = null;
+
+function initGroupDragAndDrop() {
+  const container = document.getElementById('groupManageList');
+  const items = container.querySelectorAll('.group-manage-item[draggable]');
+
+  items.forEach(item => {
+    item.addEventListener('dragstart', function(e) {
+      _draggedGroupItem = this;
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+    });
+
+    item.addEventListener('dragend', function() {
+      this.classList.remove('dragging');
+      container.querySelectorAll('.group-manage-item').forEach(el => el.classList.remove('drag-over'));
+      _draggedGroupItem = null;
+    });
+
+    item.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (_draggedGroupItem && _draggedGroupItem !== this) {
+        this.classList.add('drag-over');
+      }
+    });
+
+    item.addEventListener('dragleave', function() {
+      this.classList.remove('drag-over');
+    });
+
+    item.addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.classList.remove('drag-over');
+      if (!_draggedGroupItem || _draggedGroupItem === this) return;
+
+      // 重新排列 DOM
+      const allItems = [...container.querySelectorAll('.group-manage-item[draggable]')];
+      const fromIdx = allItems.indexOf(_draggedGroupItem);
+      const toIdx = allItems.indexOf(this);
+      if (fromIdx < toIdx) {
+        this.after(_draggedGroupItem);
+      } else {
+        this.before(_draggedGroupItem);
+      }
+
+      // 从 DOM 顺序提取新排序并同步
+      const newOrder = [...container.querySelectorAll('.group-manage-item[draggable]')]
+        .map(el => el.dataset.group);
+      cachedGroups.length = 0;
+      cachedGroups.push(...newOrder);
+      saveGroupOrder(newOrder);
+    });
+  });
+}
+
+async function saveGroupOrder(names) {
+  try {
+    await fetch('/api/groups/reorder', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({names})
+    });
+  } catch {}
 }
 
 async function createGroup() {
@@ -2859,10 +2978,9 @@ async function createGroup() {
     const data = await resp.json();
     if (data.error) { showToast(data.error); return; }
     input.value = '';
-    // 直接更新本地缓存
+    // 直接更新本地缓存（新分组追加到末尾，保持自定义排序）
     if (!cachedGroups.includes(name)) {
       cachedGroups.push(name);
-      cachedGroups.sort();
     }
     renderGroupManageList();
     showToast('分组已创建');
@@ -2884,10 +3002,9 @@ async function renameGroupPrompt(oldName) {
     });
     const data = await resp.json();
     if (data.error) { showToast(data.error); return; }
-    // 直接更新本地缓存
+    // 直接更新本地缓存（保持自定义排序，仅替换名称）
     const idx = cachedGroups.indexOf(oldName);
     if (idx !== -1) cachedGroups[idx] = newName.trim();
-    cachedGroups.sort();
     for (const a of accounts) {
       if (a.group_name === oldName) a.group_name = newName.trim();
     }
