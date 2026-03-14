@@ -9,6 +9,7 @@
 Break free from phone apps — manage your TOTP codes in any browser, self-hosted, with full control over your data.
 
 </div>
+
 ---
 
 ## Why 2FA Web?
