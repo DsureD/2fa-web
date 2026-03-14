@@ -44,14 +44,23 @@ Six layers of security protection from network to data:
 All data is stored in a local SQLite database with no reliance on any third-party cloud services. Your secrets never leave your server.
 
 ---
+## DEMO
+<p align="center">
+  <img src="assets/demo-01.png" width="18%">
+  <img src="assets/demo-02.png" width="18%">
+  <img src="assets/demo-03.png" width="18%">
+  <img src="assets/demo-04.png" width="18%">
+  <img src="assets/demo-05.png" width="18%">
+</p>
 
+---
 ## Features
 
 - **Code Management** — Add, edit, delete TOTP accounts with real-time 6-digit / 8-digit code display
 - **Smart Refresh** — Local second-level countdown + automatic fetch on expiry, smooth and flicker-free
 - **QR Code Scanning** — Upload an image or Ctrl+V paste a QR code, auto-parse otpauth:// URIs
 - **QR Code Export** — One-click QR code generation for easy migration to phone apps
-- **Group Management** — Organize by service, quick filtering, create / rename / delete groups
+- **Group Management** — Organize by service, quick filtering, create / rename / delete / drag-to-reorder groups
 - **Search & Filter** — Real-time search by site name, username, notes, or group
 - **One-Click Copy** — Click the code or copy button to automatically write to clipboard
 - **Multi-Algorithm Support** — SHA1 / SHA256 / SHA512 algorithms, 30s / 60s periods
@@ -185,6 +194,7 @@ No Webpack, no Babel, no node_modules. Copy the entire project to any machine an
 | `GET` | `/api/groups` | List groups |
 | `POST` | `/api/groups` | Create group |
 | `POST` | `/api/groups/rename` | Rename group |
+| `POST` | `/api/groups/reorder` | Reorder groups (drag-and-drop) |
 | `DELETE` | `/api/groups` | Delete group |
 
 ---

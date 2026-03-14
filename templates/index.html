@@ -1454,6 +1454,12 @@ textarea.form-input {
   justify-content: center;
   flex-shrink: 0;
   touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.group-drag-handle svg {
+  pointer-events: none;
 }
 
 .group-drag-handle:active {
@@ -2905,6 +2911,7 @@ function initGroupDragAndDrop() {
   const items = container.querySelectorAll('.group-manage-item[draggable]');
 
   items.forEach(item => {
+    // ---- 桌面端：HTML5 Drag API ----
     item.addEventListener('dragstart', function(e) {
       _draggedGroupItem = this;
       this.classList.add('dragging');
@@ -2952,7 +2959,131 @@ function initGroupDragAndDrop() {
       cachedGroups.push(...newOrder);
       saveGroupOrder(newOrder);
     });
+
+    // ---- 移动端：Touch API（兼容 iOS Safari） ----
+    const handle = item.querySelector('.group-drag-handle');
+    if (handle) {
+      handle.addEventListener('touchstart', _touchDragStart, { passive: false });
+    }
   });
+}
+
+// Touch 拖拽状态
+let _touchDragItem = null;
+let _touchDragClone = null;
+let _touchDragOffsetY = 0;
+let _touchDragLastOver = null;
+
+function _touchDragStart(e) {
+  const handle = e.currentTarget;  // 修复：用 currentTarget 而非 this
+  const item = handle.closest('.group-manage-item');
+  if (!item) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const rect = item.getBoundingClientRect();
+  _touchDragOffsetY = touch.clientY - rect.top;
+  _touchDragItem = item;
+  _touchDragLastOver = null;
+
+  // iOS：锁定 .modal 滚动，防止 touch 事件被滚动容器吞掉
+  const modal = item.closest('.modal');
+  if (modal) {
+    modal.dataset.savedOverflow = modal.style.overflow || '';
+    modal.style.overflow = 'hidden';
+  }
+
+  // 创建拖拽镜像
+  _touchDragClone = item.cloneNode(true);
+  // 镜像内所有子元素 pointer-events:none，防止 elementFromPoint 穿透失败
+  _touchDragClone.style.cssText = [
+    'position:fixed',
+    'left:' + rect.left + 'px',
+    'top:' + rect.top + 'px',
+    'width:' + rect.width + 'px',
+    'opacity:0.85',
+    'pointer-events:none',
+    'z-index:9999',
+    'border-radius:10px',
+    'box-shadow:0 8px 24px rgba(0,0,0,0.18)',
+    'background:var(--card-solid)',
+    'padding:10px 0',
+    'box-sizing:border-box',
+  ].join(';');
+  document.body.appendChild(_touchDragClone);
+  item.classList.add('dragging');
+
+  document.addEventListener('touchmove', _touchDragMove, { passive: false });
+  document.addEventListener('touchend', _touchDragEnd, { passive: false });
+  document.addEventListener('touchcancel', _touchDragEnd, { passive: false });
+}
+
+function _touchDragMove(e) {
+  if (!_touchDragItem) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const y = touch.clientY - _touchDragOffsetY;
+  _touchDragClone.style.top = y + 'px';
+
+  // 找到当前触摸点下方的目标元素
+  _touchDragClone.style.display = 'none';
+  const elBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+  _touchDragClone.style.display = '';
+
+  const targetItem = elBelow ? elBelow.closest('.group-manage-item[draggable]') : null;
+
+  if (_touchDragLastOver && _touchDragLastOver !== targetItem) {
+    _touchDragLastOver.classList.remove('drag-over');
+  }
+  if (targetItem && targetItem !== _touchDragItem) {
+    targetItem.classList.add('drag-over');
+    _touchDragLastOver = targetItem;
+  } else {
+    _touchDragLastOver = null;
+  }
+}
+
+function _touchDragEnd(e) {
+  document.removeEventListener('touchmove', _touchDragMove);
+  document.removeEventListener('touchend', _touchDragEnd);
+  document.removeEventListener('touchcancel', _touchDragEnd);
+
+  if (!_touchDragItem) return;
+
+  // 恢复 .modal 滚动
+  const modal = _touchDragItem.closest('.modal');
+  if (modal) {
+    modal.style.overflow = modal.dataset.savedOverflow || '';
+    delete modal.dataset.savedOverflow;
+  }
+
+  // 移除镜像
+  if (_touchDragClone && _touchDragClone.parentNode) {
+    _touchDragClone.parentNode.removeChild(_touchDragClone);
+  }
+  _touchDragClone = null;
+  _touchDragItem.classList.remove('dragging');
+
+  const container = document.getElementById('groupManageList');
+  container.querySelectorAll('.group-manage-item').forEach(el => el.classList.remove('drag-over'));
+
+  if (_touchDragLastOver && _touchDragLastOver !== _touchDragItem) {
+    const allItems = [...container.querySelectorAll('.group-manage-item[draggable]')];
+    const fromIdx = allItems.indexOf(_touchDragItem);
+    const toIdx = allItems.indexOf(_touchDragLastOver);
+    if (fromIdx < toIdx) {
+      _touchDragLastOver.after(_touchDragItem);
+    } else {
+      _touchDragLastOver.before(_touchDragItem);
+    }
+    const newOrder = [...container.querySelectorAll('.group-manage-item[draggable]')]
+      .map(el => el.dataset.group);
+    cachedGroups.length = 0;
+    cachedGroups.push(...newOrder);
+    saveGroupOrder(newOrder);
+  }
+
+  _touchDragItem = null;
+  _touchDragLastOver = null;
 }
 
 async function saveGroupOrder(names) {

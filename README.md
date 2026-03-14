@@ -44,14 +44,23 @@
 所有数据存储在本地 SQLite 数据库中，不依赖任何第三方云服务。你的密钥永远不会离开你的服务器。
 
 ---
+## DEMO
+<p align="center">
+  <img src="assets/demo-01.png" width="18%">
+  <img src="assets/demo-02.png" width="18%">
+  <img src="assets/demo-03.png" width="18%">
+  <img src="assets/demo-04.png" width="18%">
+  <img src="assets/demo-05.png" width="18%">
+</p>
 
+---
 ## 功能一览
 
 - **验证码管理** — 添加、编辑、删除 TOTP 账户，实时显示 6 位 / 8 位验证码
 - **智能刷新** — 本地秒级倒计时 + 到期自动拉取，流畅无闪烁
 - **二维码扫描** — 上传图片或 Ctrl+V 粘贴二维码，自动解析 otpauth:// URI
 - **二维码导出** — 一键生成账户二维码，方便迁移到手机 App
-- **分组管理** — 按服务分组，快速筛选，支持创建 / 重命名 / 删除分组
+- **分组管理** — 按服务分组，快速筛选，支持创建 / 重命名 / 删除 / 拖拽排序
 - **搜索过滤** — 按网站名、用户名、备注、分组实时搜索
 - **一键复制** — 点击验证码或复制按钮，自动写入剪贴板
 - **多算法支持** — SHA1 / SHA256 / SHA512 算法，30s / 60s 周期
@@ -185,6 +194,7 @@ server {
 | `GET` | `/api/groups` | 分组列表 |
 | `POST` | `/api/groups` | 创建分组 |
 | `POST` | `/api/groups/rename` | 重命名分组 |
+| `POST` | `/api/groups/reorder` | 分组拖拽排序 |
 | `DELETE` | `/api/groups` | 删除分组 |
 
 ---
