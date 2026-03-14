@@ -146,12 +146,18 @@ def init_db():
         CREATE TABLE IF NOT EXISTS groups (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             name        TEXT NOT NULL UNIQUE,
+            sort_order  INTEGER NOT NULL DEFAULT 0,
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         )
     """)
     # 迁移：为已有表添加 group_name 列
     try:
         conn.execute("ALTER TABLE accounts ADD COLUMN group_name TEXT NOT NULL DEFAULT ''")
+    except Exception:
+        pass  # 列已存在
+    # 迁移：为 groups 表添加 sort_order 列
+    try:
+        conn.execute("ALTER TABLE groups ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0")
     except Exception:
         pass  # 列已存在
     # 迁移：将 accounts 中已有的 group_name 同步到 groups 表
@@ -531,14 +537,17 @@ def api_get_account_secret(account_id):
 @app.route("/api/groups")
 @login_required
 def api_list_groups():
-    """获取所有分组名称（合并 groups 表和 accounts 表中的分组）"""
+    """获取所有分组名称（合并 groups 表和 accounts 表中的分组，按 sort_order 排序）"""
     conn = get_db()
     try:
         rows = conn.execute(
-            """SELECT name FROM groups
-               UNION
-               SELECT DISTINCT group_name AS name FROM accounts WHERE group_name != ''
-               ORDER BY name"""
+            """SELECT name FROM (
+                   SELECT name, sort_order FROM groups
+                   UNION
+                   SELECT DISTINCT group_name AS name, 999999 AS sort_order
+                   FROM accounts WHERE group_name != ''
+                   AND group_name NOT IN (SELECT name FROM groups)
+               ) ORDER BY sort_order ASC, name ASC"""
         ).fetchall()
     finally:
         conn.close()
@@ -556,7 +565,8 @@ def api_create_group():
 
     conn = get_db()
     try:
-        conn.execute("INSERT INTO groups (name) VALUES (?)", (name,))
+        max_order = conn.execute("SELECT COALESCE(MAX(sort_order), -1) FROM groups").fetchone()[0]
+        conn.execute("INSERT INTO groups (name, sort_order) VALUES (?, ?)", (name, max_order + 1))
         conn.commit()
     except sqlite3.IntegrityError:
         return jsonify({"error": "分组已存在"}), 400
@@ -589,6 +599,25 @@ def api_rename_group():
             "UPDATE accounts SET group_name=?, updated_at=datetime('now') WHERE group_name=?",
             (new_name, old_name)
         )
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/groups/reorder", methods=["POST"])
+@login_required
+def api_reorder_groups():
+    """更新分组排序（接收按新顺序排列的分组名称数组）"""
+    data = request.get_json(silent=True) or {}
+    names = data.get("names", [])
+    if not isinstance(names, list):
+        return jsonify({"error": "参数错误"}), 400
+
+    conn = get_db()
+    try:
+        for i, name in enumerate(names):
+            conn.execute("UPDATE groups SET sort_order=? WHERE name=?", (i, name))
         conn.commit()
     finally:
         conn.close()
