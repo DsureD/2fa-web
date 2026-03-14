@@ -71,7 +71,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/yourname/2fa-web.git
+git clone https://github.com/DsureD/2fa-web.git
 cd 2fa-web
 
 # 安装依赖
