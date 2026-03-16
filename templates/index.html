@@ -879,7 +879,7 @@ textarea.form-input {
   display: flex;
   align-items: center;
   padding: 12px 4px 6px;
-  cursor: pointer;
+  cursor: grab;
   user-select: none;
   border-radius: 8px;
   transition: background .15s;
@@ -919,6 +919,37 @@ textarea.form-input {
 
 .group-content.collapsed {
   display: none;
+}
+
+/* 主页面分组拖拽手柄 */
+.group-header-drag {
+  width: 24px;
+  height: 24px;
+  color: var(--text3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity .2s;
+  margin-left: auto;
+  padding-left: 8px;
+}
+
+.group-header-drag svg {
+  pointer-events: none;
+}
+
+.group-header:hover .group-header-drag {
+  opacity: 1;
+}
+
+.group-section.dragging {
+  opacity: 0.4;
+}
+
+.group-section.drag-over > .group-header {
+  background: rgba(0,122,255,0.08);
 }
 
 /* ========== 分组筛选标签 ========== */
@@ -2313,13 +2344,16 @@ function renderAccounts() {
     const isCollapsed = collapsedGroups.has(groupName);
     if (showGroupHeaders) {
       const displayName = groupName || '未分组';
-      html += `<div class="group-section">
-        <div class="group-header" onclick="toggleGroup('${escAttr(groupName)}')">
+      html += `<div class="group-section" draggable="true" data-group-name="${escAttr(groupName)}">
+        <div class="group-header" data-group="${escAttr(groupName)}">
           <span class="group-header-arrow ${isCollapsed ? 'collapsed' : ''}">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 2l4 4-4 4"/></svg>
           </span>
           <span class="group-header-text">${esc(displayName)}</span>
           <span class="group-header-count">${items.length}</span>
+          <span class="group-header-drag" title="拖拽排序">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/></svg>
+          </span>
         </div>
         <div class="group-content ${isCollapsed ? 'collapsed' : ''}">`;
     }
@@ -2331,6 +2365,7 @@ function renderAccounts() {
     }
   }
   container.innerHTML = html;
+  if (showGroupHeaders) initAccountGroupDragAndDrop();
 }
 
 function renderCard(a, i) {
@@ -3094,6 +3129,234 @@ async function saveGroupOrder(names) {
       body: JSON.stringify({names})
     });
   } catch {}
+}
+
+/* ========== 主页面分组拖拽排序 ========== */
+let _acctDraggedSection = null;
+let _acctDidDrag = false;  // 标记本次 mousedown 是否真正发生了拖拽
+
+function initAccountGroupDragAndDrop() {
+  const container = document.getElementById('accountList');
+  const sections = container.querySelectorAll('.group-section[draggable]');
+
+  sections.forEach(section => {
+    const header = section.querySelector('.group-header');
+    if (!header) return;
+
+    // ---- 桌面端：点击 vs 拖拽区分 ----
+    // mousedown 在 header 上时允许拖拽，并重置标记
+    header.addEventListener('mousedown', function(e) {
+      _acctDidDrag = false;
+    });
+
+    // click 在 header 上时：如果没有发生过拖拽才触发折叠
+    header.addEventListener('click', function(e) {
+      if (_acctDidDrag) {
+        _acctDidDrag = false;
+        return;
+      }
+      const groupName = this.dataset.group;
+      if (groupName !== undefined) toggleGroup(groupName);
+    });
+
+    // ---- 桌面端：HTML5 Drag API ----
+    section.addEventListener('dragstart', function(e) {
+      // 仅当鼠标按在 header 区域内时才允许拖拽
+      const headerRect = header.getBoundingClientRect();
+      if (e.clientY < headerRect.top || e.clientY > headerRect.bottom ||
+          e.clientX < headerRect.left || e.clientX > headerRect.right) {
+        e.preventDefault();
+        return;
+      }
+      _acctDraggedSection = this;
+      _acctDidDrag = true;
+      this.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+    });
+
+    section.addEventListener('dragend', function() {
+      this.classList.remove('dragging');
+      container.querySelectorAll('.group-section').forEach(el => el.classList.remove('drag-over'));
+      _acctDraggedSection = null;
+    });
+
+    section.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (_acctDraggedSection && _acctDraggedSection !== this) {
+        this.classList.add('drag-over');
+      }
+    });
+
+    section.addEventListener('dragleave', function() {
+      this.classList.remove('drag-over');
+    });
+
+    section.addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.classList.remove('drag-over');
+      if (!_acctDraggedSection || _acctDraggedSection === this) return;
+
+      const allSections = [...container.querySelectorAll('.group-section[draggable]')];
+      const fromIdx = allSections.indexOf(_acctDraggedSection);
+      const toIdx = allSections.indexOf(this);
+      if (fromIdx < toIdx) {
+        this.after(_acctDraggedSection);
+      } else {
+        this.before(_acctDraggedSection);
+      }
+
+      _applyAccountGroupOrder(container);
+    });
+
+    // ---- 移动端：Touch API（绑定在 header 上） ----
+    header.addEventListener('touchstart', _acctTouchDragStart, { passive: false });
+  });
+}
+
+function _applyAccountGroupOrder(container) {
+  const newOrder = [...container.querySelectorAll('.group-section[draggable]')]
+    .map(el => el.dataset.groupName);
+  // 更新 cachedGroups：保留有名分组的新顺序，未分组不参与排序
+  const namedOrder = newOrder.filter(g => g !== '');
+  cachedGroups.length = 0;
+  cachedGroups.push(...namedOrder);
+  saveGroupOrder(namedOrder);
+  renderGroupFilter();
+}
+
+// Touch 拖拽状态（主页面分组）
+let _acctTouchItem = null;
+let _acctTouchClone = null;
+let _acctTouchOffsetY = 0;
+let _acctTouchLastOver = null;
+let _acctTouchMoved = false;  // 标记是否发生了移动（区分点击和拖拽）
+let _acctTouchStartX = 0;
+let _acctTouchStartY = 0;
+const _acctTouchThreshold = 10;  // 移动超过此距离才视为拖拽
+
+function _acctTouchDragStart(e) {
+  const header = e.currentTarget;
+  const section = header.closest('.group-section[draggable]');
+  if (!section) return;
+
+  const touch = e.touches[0];
+  _acctTouchStartX = touch.clientX;
+  _acctTouchStartY = touch.clientY;
+  _acctTouchMoved = false;
+
+  const rect = section.getBoundingClientRect();
+  _acctTouchOffsetY = touch.clientY - rect.top;
+  _acctTouchItem = section;
+  _acctTouchLastOver = null;
+
+  // 不立即 preventDefault，让浏览器先判断滚动意图
+  // 在 touchmove 达到阈值后再创建镜像和阻止默认行为
+  _acctTouchClone = null;
+
+  document.addEventListener('touchmove', _acctTouchDragMove, { passive: false });
+  document.addEventListener('touchend', _acctTouchDragEnd, { passive: false });
+  document.addEventListener('touchcancel', _acctTouchDragEnd, { passive: false });
+}
+
+function _acctTouchDragMove(e) {
+  if (!_acctTouchItem) return;
+  const touch = e.touches[0];
+
+  // 未达到拖拽阈值时检测移动距离
+  if (!_acctTouchMoved) {
+    const dx = touch.clientX - _acctTouchStartX;
+    const dy = touch.clientY - _acctTouchStartY;
+    if (Math.abs(dx) < _acctTouchThreshold && Math.abs(dy) < _acctTouchThreshold) {
+      return;  // 距离不够，还不算拖拽
+    }
+    // 达到阈值，开始拖拽
+    _acctTouchMoved = true;
+    const rect = _acctTouchItem.getBoundingClientRect();
+    const header = _acctTouchItem.querySelector('.group-header');
+    _acctTouchClone = header.cloneNode(true);
+    _acctTouchClone.style.cssText = [
+      'position:fixed',
+      'left:' + rect.left + 'px',
+      'top:' + rect.top + 'px',
+      'width:' + rect.width + 'px',
+      'opacity:0.85',
+      'pointer-events:none',
+      'z-index:9999',
+      'border-radius:10px',
+      'box-shadow:0 8px 24px rgba(0,0,0,0.18)',
+      'background:var(--card-solid)',
+      'padding:12px 4px 6px',
+      'box-sizing:border-box',
+    ].join(';');
+    document.body.appendChild(_acctTouchClone);
+    _acctTouchItem.classList.add('dragging');
+  }
+
+  e.preventDefault();
+  const y = touch.clientY - _acctTouchOffsetY;
+  _acctTouchClone.style.top = y + 'px';
+
+  _acctTouchClone.style.display = 'none';
+  const elBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+  _acctTouchClone.style.display = '';
+
+  const targetSection = elBelow ? elBelow.closest('.group-section[draggable]') : null;
+
+  if (_acctTouchLastOver && _acctTouchLastOver !== targetSection) {
+    _acctTouchLastOver.classList.remove('drag-over');
+  }
+  if (targetSection && targetSection !== _acctTouchItem) {
+    targetSection.classList.add('drag-over');
+    _acctTouchLastOver = targetSection;
+  } else {
+    _acctTouchLastOver = null;
+  }
+}
+
+function _acctTouchDragEnd(e) {
+  document.removeEventListener('touchmove', _acctTouchDragMove);
+  document.removeEventListener('touchend', _acctTouchDragEnd);
+  document.removeEventListener('touchcancel', _acctTouchDragEnd);
+
+  if (!_acctTouchItem) return;
+
+  // 如果没有发生移动，视为点击 → 触发折叠
+  if (!_acctTouchMoved) {
+    const header = _acctTouchItem.querySelector('.group-header');
+    if (header) {
+      const groupName = header.dataset.group;
+      if (groupName !== undefined) toggleGroup(groupName);
+    }
+    _acctTouchItem = null;
+    _acctTouchLastOver = null;
+    return;
+  }
+
+  if (_acctTouchClone && _acctTouchClone.parentNode) {
+    _acctTouchClone.parentNode.removeChild(_acctTouchClone);
+  }
+  _acctTouchClone = null;
+  _acctTouchItem.classList.remove('dragging');
+
+  const container = document.getElementById('accountList');
+  container.querySelectorAll('.group-section').forEach(el => el.classList.remove('drag-over'));
+
+  if (_acctTouchLastOver && _acctTouchLastOver !== _acctTouchItem) {
+    const allSections = [...container.querySelectorAll('.group-section[draggable]')];
+    const fromIdx = allSections.indexOf(_acctTouchItem);
+    const toIdx = allSections.indexOf(_acctTouchLastOver);
+    if (fromIdx < toIdx) {
+      _acctTouchLastOver.after(_acctTouchItem);
+    } else {
+      _acctTouchLastOver.before(_acctTouchItem);
+    }
+    _applyAccountGroupOrder(container);
+  }
+
+  _acctTouchItem = null;
+  _acctTouchLastOver = null;
 }
 
 async function createGroup() {
